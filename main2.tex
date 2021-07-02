@@ -1,0 +1,707 @@
+\documentclass[runningheads,envcountsame]{llncs}
+
+\usepackage[utf8]{inputenc}
+\usepackage[normalem]{ulem}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,hyperref,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx,ulem,tikz-cd,centernot}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in, top=0.4in]{geometry}
+\usepackage{xcolor}
+
+\include{definitions}
+\newcommand{\monad}{M}
+\newcommand{\homCM}[3][]{\homJ{#2}{\C_\monad}{#3}}
+
+\begin{document}
+
+\title{Emordnilap}
+\subtitle{A Language for Ambiconversible/Ambidirectional/Mixed-directional Programming and its Categorical Semantics}
+
+\maketitle
+
+\section{Introduction}
+
+There are a few words that convey the meaning we intent in this paper: \emph{inverse}, \emph{reverse}, \emph{converse}. Unfortunately these words have been used in different settings for different meanings. The \emph{inverse} $f^{-1}$ of a function $f$ usually means that $\comp{f}{f^{-1}} = \id$ and $\comp{f^{-1}}{f} = \id$. In \emph{reversible computations} we usually deal with partial inverses. But in an \emph{inverse semigroup} we only have $\comp{f}{\comp{f^{-1}}{f}} = f^{-1}$ which is similar but not the same. The term \emph{bidirectional transformation} is too closely associated with \emph{lenses}.
+
+So going with logic, where the \emph{converse} of an implication $A \to B$ is $B \to A$ and the two don't necessarily imply each other, we will use the word \emph{conversible} for any function $f\colon A \to B$ where there exist some \emph{sensible} notion of a function $\rev{f}\colon B \to A$ associated with $f$ which we call the \emph{converse} of $f$. In the same vein the word \emph{emordnilap} is in a way the converse of the word palindrome. A palindrome is a word that spelled backwards is the same as the word spelled forwards, whereas an emordnilap is a word that when spelled backwards is a different word then when spelled forwards (but still a word).
+
+The other generalization behind Emordnilap is to combine conversible and inconversible programming into a single language. This allows a conversible function to be constructed in an inconversible manner and this can happen very naturally as part of a conversible function application as we will see. The same idea also allows for a natural extension of patterns allowing conversible function applications and let-expression as patterns even in inconversible programs. We call a language which has both inconversible and conversible functions \emph{ambiconversible} -- functions can have any form of conversibility.
+
+\section{Notation}
+
+\begin{definition}
+    A \emph{binoidal} category $\C$ is a category equipped with
+    \begin{itemize}
+        \item an object $\tensor{A}{B}$ for every pair of objects $A$ and $B$ and
+        \item two functors $\tensor{A}{-}, \tensor{-}{A}\colon \C \to \C$ for every object $A$.
+    \end{itemize}
+    
+    A morphism $f\colon A \to B$ in a binoidal category is \emph{central} if for every morphism $f'\colon A' \to B'$ we have $\comp{\tensor{f}{A'}}{\tensor{B}{f'}} = \comp{\tensor{B}{f'}}{\tensor{f}{A'}}$ and $\comp{\tensor{A'}{f}}{\tensor{f'}{B}} = \comp{\tensor{f'}{B}}{\tensor{A'}{f}}$. 
+    A natural transformation is \emph{central} if all its components are central.
+    
+    A \emph{symmetric premonoidal} category $\C$ is a binoidal category equipped with
+    \begin{itemize}
+        \item an object $I$ called the \emph{unit object} and
+        \item central natural isomorphisms $\assoc_{A,B,C}\colon \tensor{(\tensor{A}{B})}{C} \cong \tensor{A}{(\tensor{B}{C})}$, $\unitl_{A}\colon A \cong \tensor{I}{A}$, $\unitr_{A}\colon A \cong \tensor{A}{I}$ and $\swap_{A,B}\colon \tensor{A}{B} \cong \tensor{B}{A}$
+    \end{itemize}
+    subject to certain coherence conditions.
+\end{definition}
+
+\begin{remark}
+    We are using premonoidal categories instead of the more familiar monoidal categories because Kleisli-categories over a monoidal category are always premonoidal but not necessarily monoidal.
+\end{remark}
+
+\begin{remark}
+    A \emph{symmetric monoidal} category $\C$ is a symmetric premonoidal category in which all morphisms are central.
+\end{remark}
+
+For brevity we will omit the isomorphisms $\assoc$, $\unitl$, $\unitr$, i.e., assume they are identities. This actually mimics the graphical calculus for symmetric monoidal categories. 
+
+We will adopt the convention that tuples are evaluated from left to right, so the abbreviation $\tensor{f}{g} = \comp{(\tensor{f}{B})}{(\tensor{A'}{g})}$ is useful.
+
+\begin{definition}
+    A \emph{precartesian premonoidal} category is a symmetric premonoidal category which is equipped with a central family of cocommutative comonoids $(\dup_{A}\colon A \to \tensor{A}{A}, \terminal_{A}\colon A \to I)$ such that 
+    \begin{align}
+        \tensor{\dup_A}{\dup_B} &= \comp{\dup_{\tensor{A}{B}}}{\tensor{A}{\tensor{\swap_{B, A}}{B}}} \\
+        \dup_I &= \id_I \qquad\qquad \text{(remember we omit $\unitl$ or $\unitr$)} \\
+        \tensor{\terminal_A}{\terminal_B} &= \terminal_{\tensor{A}{B}} \\
+        \terminal_I &= \id_I
+    \end{align}
+    and such that the premonoidal isomorphisms are comonoid homomorphisms.
+    
+    A central morphism $f\colon A \to B$ in a precartesian premonoidal category is called
+    \begin{itemize}
+        \item \emph{copyable} if $\comp{f}{\dup_B} = \comp{\dup_A}{\tensor{f}{f}}$, and
+        \item \emph{eliminable} if $\comp{f}{\terminal_B} = \terminal_A$.
+    \end{itemize}
+\end{definition}
+    
+\begin{remark}
+    We are using precartesian categories instead of the more familiar cartesian categories here to allow for call-by-value evaluation strategies. The category of DCPOs and strict Scott-continuous functions is precartesian closed, but not cartesian closed. (Proof?)
+\end{remark}
+
+\begin{lemma}
+    In a precartesian premonoidal category $\comp{-}{-}$, $\tensor{-}{A}$ and $\tensor{A}{-}$ are closed under central, copyable and eliminable morphisms.
+\end{lemma}
+\begin{proof}
+    Easy.
+\end{proof}
+
+\begin{lemma}
+    A precartesian monoidal category is cartesian monoidal if and only if all morphisms are copyable and eliminable. 
+\end{lemma}
+\begin{proof}
+    ($\Longrightarrow$) Let $\pi_1 = \tensor{\id_A}{\terminal_B}$, $\pi_2 = \tensor{\terminal_A}{\id_B}$, $\langle f, g \rangle = \comp{\dup_C}{\tensor{f}{g}}$.
+    \begin{align}
+        & \comp{\langle f, g \rangle}{\pi_1} \\
+      = & \comp{\comp{\dup_C}{\tensor{f}{g}}}{\tensor{\id_A}{\terminal_B}} \\
+      = & \comp{\comp{\dup_C}{\tensor{\id_C}{\terminal_C}}}{\tensor{f}{\id_I}} \\
+      = & f
+    \end{align}
+    Let $h\colon C \to \tensor{A}{B}$ such that $\comp{h}{\pi_1} = f$ and $\comp{h}{\pi_2} = g$.
+    \begin{align}
+        & \langle f, g \rangle \\
+      = & \comp{\dup_C}{\tensor{(\comp{h}{\pi_1})}{(\comp{h}{\pi_2})}} \\
+      = & \comp{h}{\comp{\dup_{\tensor{A}{B}}}{\tensor{(\tensor{\id_A}{\terminal_B})}{(\tensor{\terminal_A}{\id_B})}}} \\
+      = & \comp{h}{\comp{\tensor{\dup_A}{\dup_B}}{\tensor{(\tensor{\id_A}{\terminal_A})}{(\tensor{\terminal_B}{\id_B})}}} \\
+      = & h
+    \end{align}
+    
+    ($\Longleftarrow$) Naturality of $\langle \id, \id \rangle$ and the terminal morphisms. 
+\end{proof}
+
+\begin{definition}
+    A \emph{premonoidal preclosed} category $\C$ is a premonoidal category such that 
+    \begin{itemize}
+        \item for every pair of objects $A$, $B$ there is an object $\homC{A}{B}$,
+        \item for every morphism $f\colon \tensor{A}{C} \to B$ there is a morphism $\curry\,f\colon C \to \homC{A}{B}$,
+        \item for every morphism $f\colon C \to \homC{A}{B}$ there is a morphism $\uncurry\,f\colon \tensor{A}{C} \to B$
+        \item such that $\curry$ and $\uncurry$ are natural in $A$, $B$ and $C$, and
+        \item $\uncurry\,(\curry\,f) = f$,
+        \item the premonoidal isomorphisms are closeable.
+    \end{itemize}
+    
+    A morphism $f$ in a premonoidal preclosed category is called \emph{closeable} if $\curry\,(\uncurry\,f) = f$.
+    
+    A \emph{precartesian preclosed} category is a category that is precartesian and preclosed such that the comonoids are closeable.
+\end{definition}
+
+\begin{remark}
+    A monoidal rsp. cartesian preclosed category is monoidal rsp. cartesian closed if and only if all morphisms are closeable.
+\end{remark}
+
+\begin{remark}
+    As we will see later for conversibility it is necessary to evaluate the argument before the function in a function call. So the signature of $\eval$ has to be $\tensor{A}{\homC{A}{B}} \to B$ which is the opposite to the usual. And thus, the signature of $\uncurry$ and $\curry$ is forced similarly opposite to the usual -- all of which is completely arbitrary in a \emph{symmetric} monoidal closed category.
+\end{remark}
+
+(TODO?) Preclosed categories have the remarkable property that they are represented within themselves, i.e., for all of the assumed structure there is a corresponding morphism that acts on the hom-objects and obeys the same rules. So
+\begin{itemize}
+    \item for identity morphisms $\id_A\colon A \to A$ there is a family of morphisms $\name[\C]{\id}_A\colon I \to \homC{A}{A} = \curry_I\,\id_A$ (remember we omit $\unitr$),
+    \item for composition there is a family of morphisms $\name[\C]{\comp{-}{-}}_{A,B,C}\colon \tensor{\homC{A}{B}}{\homC{B}{C}} \to \homC{A}{C} = \curry_{\tensor{\homC{A}{B}}{\homC{B}{C}}}\,(\comp{(\tensor{\eval}{\id})}{\eval})$
+    \item for the symmetric premonoidal structure there are morphisms $\name[\C]{\tensor{-}{C}}_{A,B}\colon \homC{A}{B} \to \homC{\tensor{A}{C}}{\tensor{B}{C}}$, $\name[\C]{\tensor{C}{-}}_{A,B}\colon \homC{A}{B} \to \homC{\tensor{C}{A}}{\tensor{C}{B}}$, $\name[\C]{\assoc}_{A,B,C}\colon I \to \homC{\tensor{(\tensor{A}{B})}{C}}{\tensor{(\tensor{A}{B})}{C}} = \curry_I\,\assoc_{A,B,C}$ and $\name[\C]{\assoc^{-1}}_{A,B,C}\colon I \to \homC{\tensor{(\tensor{A}{B})}{C}}{\tensor{(\tensor{A}{B})}{C}} = \curry_I\,\assoc^{-1}_{A,B,C}$ and so on,
+    \item for the closed structure there are morphisms $\name[\C]{\curry}_{C,A,B}\colon \homC{\tensor{A}{C}}{B} \to \homC{C}{\homC{A}{B}}$ and $\name[\C]{\uncurry}_{C,A,B}\colon \homC{C}{\homC{A}{B}} \to \homC{\tensor{A}{C}}{B}$.
+\end{itemize}
+In general for every morphism $f\colon A \to B$ there is a unique morphism $\name[\C]{f}\colon I \to \homC{A}{B}$ via $\curry[\C]_{I, A, B}$ and for any natural isomorphism (in $\Set$) between hom-sets $\nu\colon \C(F\,-, G\,-) \to \C(F'\,-, G'\,-)$ there is a natural isomorphism (in $\C$) $\name[\C]{\nu}\colon \homC{F\,-}{G\,-} \to \homC{F'\,-}{G'\,-}$ via the fully faithfulness of the Yoneda-embedding.
+
+Generalized to arbitrary categories this idea is called enrichment. For example $\C_\monad$ is enriched in $\C$ with the hom-object $\homCM{A}{B} = \homC{A}{\monad\,B}$.
+\begin{itemize}
+    \item $\name[\C_\monad]{\id}_A = \eta_A$
+    \item $\name[\C_\monad]{\comp{-}{-}}_{A,B,C} = \comp{(\tensor{(-^*)_{A,B}}{\id_{\homCM{B}{C}}})}{(\comp{-}{-})^\C_{A, \monad\,B, \monad\,C}}$
+\end{itemize} [need proof?]
+We will abbreviate $\comp{\tensor{\id}{\name{f}}}{\name{\comp{-}{-}}}$ by $\name{\comp{-}{f}}$ and $\comp{\tensor{\name{f}}{\id}}{\name{\comp{-}{-}}}$ by $\name{\comp{f}{-}}$.
+
+A $\C$-enriched identity-on-objects functor $F\colon \D \to \D'$ between two $\C$-enriched categories is a family of $\C$-morphisms $F_{A,B}\colon \homJ{A}{\D}{B} \to \homJ{A}{\D'}{B}$ between the respective hom-objects that obeys the usual (enriched) functor laws.
+
+\begin{lemma}
+    Let $\C$ be a precartesian closed category and $(\monad\colon \C \to \C, \munit, \mjoin, \mstrength)$ be a strong monad. Then the Kleisli-category $\C_\monad$ is a precartesian premonoidal $\C$-enriched category.
+\end{lemma}
+\begin{proof}
+    TODO
+\end{proof}
+
+\begin{definition}
+    A \emph{dagger} category $\D$ is a category equipped with an identity-on-objects functor $\rev{-}\colon \op{\D} \to \D$ such that $\rev{f}\rev{{}} = f$ and $\rev{(\comp{f}{g})} = \comp{\rev{g}}{\rev{f}}$ for all morphisms $f$ and $g$.
+    
+    A \emph{symmetric premonoidal dagger} category is a dagger category which is also symmetric premonoidal such that $\rev{\assoc} = \assoc^{-1}$, $\rev{\unitl} = \unitl^{-1}$, $\rev{\unitr} = \unitr^{-1}$ and $\rev{\swap} = \swap$.
+    
+    A \emph{$\C$-enriched dagger} category is a dagger category that is $\C$-enriched such that  its $\dagger$-functor is a $\C$-enriched functor.
+\end{definition}
+
+\section{Definitions}
+
+\subsection{Contextual Categories}
+
+Given a precartesian closed category $\C$ there is a useful construction.
+
+\begin{definition}
+    Let $\C$ be a precartesian closed category and $\D$ a symmetric premonoidal $\C$-enriched category and $C$ an object of $\C$. Define the symmetric premonoidal category $\D^C$ as follows:
+    \begin{itemize}
+        \item The objects of $\D^C$ are the objects of $\D$.
+        \item The hom-sets are given by $\D^C(A, B) = \C(C, \homD{A}{B})$.
+        \item Identities are $\id_A = \comp{\terminal_C}{\name[\D]{\id}_A}$.
+        \item Composition is given by $\comp{f}{g} = \comp{\comp{\dup_C}{(\tensor{f}{g})}}{\name[\D]{(\comp{-}{-})}}$.
+        \item The tensor functors are $\tensor{f}{B} = \comp{f}{\name[\D]{\tensor{-}{B}}}$ and $\tensor{A}{f} = \comp{f}{\name[\D]{\tensor{A}{-}}}$.
+        \item The premonoidal isomorphisms are $\assoc_{A, B, C} = \comp{\terminal_C}{\name[\D]{\assoc}_{A,B,C}}$ and so on.
+    \end{itemize}
+    
+    For any morphism $f\colon C \to \homD{A}{B}$ in $\c$ we denote by $\unname{f}\colon A \to B$ the same morphism in $\D^C$.
+
+    Let $F\colon \D \to \D'$ be a symmetric premonoidal $\C$-functor. Define the symmetric premonoidal $\C$-functor $F^C\colon \D^C \to \D'^C$ by $F^C(g\colon A \to B) = \comp{g}{F_{A,B}}$.
+    
+    For any eliminable $\C$ morphism $f\colon C \to C'$ we define the symmetric premonoidal $\C$-functor $\D^f\colon \D^{C'} \to \D^C$ by $\D^f(g) = \comp{f}{g}$.
+    
+\end{definition}
+
+The required laws are easy to verify and are essentially given by the $\C$-enrichment.
+
+\begin{lemma}
+    If $\D$ is a 
+    \begin{lemmalist}
+        \item symmetric premonoidal category,
+        \item symmetric monoidal category,
+        \item precartesian premonoidal category, or
+        \item symmetric monoidal closed category
+    \end{lemmalist}
+    then so is $\D^C$.
+\end{lemma}
+\begin{proof}
+    TODO
+\end{proof}
+
+\subsection{$\juncurry$}
+
+\begin{definition} 
+    For a precartesian preclosed category $\C_\monad$ define 
+    \begin{align}
+        \juncurry[\C_\monad]_{C,A,B}\,f &= \tensor{A}{C} \xrightarrow{\tensor{\id_A}{\dup_C}} \tensor{A}{\tensor{C}{C}} \xrightarrow{\tensor{(\uncurry_{C,A,B}\,f)}{\id_C}} \tensor{B}{C}
+    \end{align}
+    for $f\colon C \to \homC{A}{B}$.
+\end{definition}
+
+\begin{lemma}
+    $\juncurry[\C_\monad]$ is copyable-dinatural in $C$, i.e., the following diagram commutes for all copyable $g\colon C' \to C$.
+    \begin{center}
+    \begin{tikzcd}
+    & \C(C, \homC{A}{B}) \ar[rd, "{\C(g, \homC{\id_A}{\id_B})}"] \ar[dl, equals] \\
+    \C(C, \homC{A}{B}) \ar[d, swap, "{\juncurry[\C]}"] & &
+    \C(C', \homC{A}{B}) \ar[d, "{\juncurry[\C]}"] \\
+    \C(\tensor{A}{C}, \tensor{B}{C}) \ar[dr, swap, "{\C(\tensor{\id_A}{g}, \tensor{id_B}{\id_C})}"] & &
+    \C(\tensor{A}{C'}, \tensor{B}{C'}) \ar[dl, "{\C(\tensor{\id_A}{\id_C}, \tensor{id_B}{g})}"] \\
+    & \C(\tensor{A}{C'}, \tensor{B}{C})
+    \end{tikzcd}
+    \end{center}
+\end{lemma}
+\begin{proof}
+    The (constrained) dinaturality is between the two functors
+    \begin{align}
+        F_{A,B}, G_{A,B}&\colon \op{\C} \times \C \to \Set \\
+        F_{A,B}(C, C') &= \C(C, \homC{A}{B}) \\
+        F_{A.B}(g, g') &= \C(g, \id_{\homC{A}{B}}) \\
+        G_{A,B}(C, C') &= \C(\tensor{A}{C}, \tensor{B}{C'}) \\
+        G_{A,B}(g, g') &= \C(\tensor{\id_A}{g}, \tensor{\id_B}{g'})
+    \end{align}
+    
+    \begin{align}
+        & \comp{\juncurry[\C]\,(\comp{g}{f})}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\uncurry\,(\comp{g}{f})}{\id_C})}}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{\comp{(\tensor{\tensor{\id_A}{g}}{\id_C})}{(\tensor{\uncurry\,f}}{\id_C})}}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\id_A}{\tensor{g}{g}})}}{(\tensor{\uncurry\,f}{\id_C})} \\
+      = & \comp{(\tensor{\id_A}{g})}{\comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\uncurry\,f}{\id_C})}} \\
+      = & \comp{(\tensor{\id_A}{g})}{\juncurry\,f}
+    \end{align}
+\end{proof}
+
+\begin{definition}
+    A $\juncurry$-structure is a tuple $(\C_\monad, \D, \f{-}, \juncurry[\D])$ where 
+    \begin{itemize}
+        \item $\C_\monad$ is a precartesian preclosed category,
+        \item $\D$ is a $\C_\monad$-enriched symmetric premonoidal category with the external hom-object denoted by $\homD{A}{B}$,
+        \item $\f{-}\colon \D \to \C_\monad$ is a $\C_\monad$-enriched symmetric premonoidal identity-on-objects functor and
+        \item $\juncurry[\D]_{C,A,B}\colon \homCM{C}{\homD{A}{B}} \to \homD{\tensor{A}{C}}{\tensor{B}{C}}$ is a famlily of $\C_\monad$-morphisms such that  the following diagram commutes. \\
+        \begin{equation}
+        \begin{tikzcd}[column sep=normal]
+        {\C_\monad(C, \homD{A}{B})} \ar[rr, "{\C_\monad(\id_C, \f{-})}"] \ar[d, "{\juncurry[\D]_{A,B,C}}"] & & 
+        {\C_\monad(C, \homCM{A}{B})} \ar[d, swap, "{\juncurry[\C_\monad]_{A,B,C}}"] \\
+        {\D(\tensor{A}{C}, \tensor{B}{C})} \ar[rr, "{\f{-}}"]
+        & & \C_\monad(\tensor{A}{C}, \tensor{B}{C})
+        \end{tikzcd}
+        \end{equation}
+    \end{itemize}
+    
+    A $\dagger\juncurry$-structure is a $\juncurry$-structure where $\D$ is dagger $\C_\monad$-enriched and the following diagram commutes. \\
+    \begin{equation}
+    \begin{tikzcd}[column sep=normal]
+    {\C_\monad(C, \homD{A}{B})} \ar[rr, "{\C_\monad(\id_C, \rev{-})}"] \ar[d, "{\juncurry[\D]_{A,B,C}}"] & & 
+    {\C_\monad(C, \homD{B}{A})} \ar[d, swap, "{\juncurry[\D]_{B,A,C}}"] \\
+    {\D(\tensor{A}{C}, \tensor{B}{C})} \ar[rr, "{\rev{-}}"]
+    & & \D(\tensor{B}{C}, \tensor{A}{C})
+    \end{tikzcd}
+    \end{equation}
+    
+    We write $\b{f}$ for $\f{(\rev{f})}$.
+\end{definition}
+
+\begin{example}
+    $(\C_\monad, \C_\monad, \Id, \juncurry[\C_\monad])$ is trivially a $\juncurry$-structure.
+\end{example}
+\begin{example}
+    $(\C_\monad, \coreC_\monad, \iota, \comp{\iota}{\juncurry[\C_\monad]})$ is canonically a $\dagger\juncurry$-structure with
+    \begin{itemize}
+        \item $\coreC_\monad$ the wide subcategory of $\C_\monad$ containing only the isomorphisms,
+        \item $\iota\colon \coreC \to \C$ the injection functor and
+        \item $\rev{f} = {f}^{-1}$.
+    \end{itemize}
+    TODO Note that if $\uncurry_{A, B, I} (\comp{g}{f})$ is an isomorphism for all $g\colon I \to C$ then $\juncurry_{A,B,C}\,f$ is also an isomorphism.
+\end{example}
+\begin{example}
+    $(\C_\monad, \JC_\monad, \f{-}, \juncurry[\JC])$ is canonically a $\dagger\juncurry$-structure with
+    \begin{itemize}
+        \item $\JC_\monad$ the full subcategory of $\C_\monad \times \op{\C_\monad}$ containing only objects of the form $(A, A)$, called the \emph{Janus category} of $\C_\monad$, i.e., its objects are canonically isomorphic to those of $\C$ and $\C_\monad$ which is how we can define identity-on-objects functors between them,
+        \item $\rev{(f, g)} = (g, f)$,
+        \item $\f{(f, g)} = f$,
+        \item $\juncurry[\JC_\monad]\,f = \janus{
+            \comp{\name{\comp{-}{(\f{-})}}}{\juncurry[\C_\monad]}}{
+            \comp{\name{\comp{-}{(\b{-})}}}{\juncurry[\C_\monad]}}$
+    \end{itemize}
+    Note that $\op{(\JC_\monad)} = \JC_\monad$.
+\end{example}
+
+\begin{lemma} \label{lem:janus-class-terminal}
+    Let $\JCC_\monad$ be the category of pairs $(\D, \f{-}\colon \D \to \C_\monad)$ where $\f{-}$ is a functor and dagger functors. $\JC_\monad$ is its terminal object.
+\end{lemma}
+
+\begin{remark}
+    \Cref{lem:janus-class-terminal} states a result about our assumptions. We essentially only care about the image of $\f{-}$ and $\b{-}$ and thus all the dagger categories we consider can be expressed as a pair of morphisms of $\C_\monad$. Our assumptions are such that we disregard any structure that goes beyond this.
+\end{remark}
+
+\section{Inconversible Emordnilap}
+
+\begin{figure}
+    \centering
+    \begin{align}
+        T &= \mathrm{obj}(\C) \\
+        V &::= x \mid x_1 \mid \dots \text{variables} \\
+        C &::= (\rev{})_{T,T} \mid c \mid c_1 \mid \dots \text{constant symbols} \\
+        P &::= V \mid \eunit \mid \epair{V}{V} \\
+        E &::= C \mid V \mid \eunit \mid \epair{E}{E} \mid \eapp{E}{E} \mid \elam{V}{E} \mid \elet{P}{E}{E}
+    \end{align}
+    \caption{Syntax}
+    \label{fig:syntax1}
+\end{figure}
+
+\begin{figure}
+    \centering
+    {\def\arraystretch{1.5}
+    \begin{tabular}{l|l c l}
+        \hline
+        Name & Typing (Expressions) & & Semantics ($\semL{-}$)
+        \\ \hline\hline
+          \textsc{Const} 
+        & $\typerulel{\Gamma}{c_i}{\sem{c_i}_{CT}}$
+        & = & $\comp{\terminal_{\sem{\Gamma}}}{\sem{c_i}_C}$
+        \\ \hline
+          \textsc{Var}
+        & $\typerulel{v_1\colon A_1, \dots, v_n\colon A_n}{v_i}{A_i}$
+        & = & $\tensor{\terminal_{\tensor{A_1}{\tensor{\dots}{A_{i-1}}}}}{\tensor{\id_{A_i}}{\terminal_{\tensor{\tensor{A_{i+1}}{\dots}}{A_n}}}}$
+        \\ \hline
+          \textsc{Unit} 
+        & $\typerulel{\Gamma}{\eunit}{I}$
+        & = & $\terminal_{\sem{\Gamma}}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}}
+        & $\typerulel{\Gamma}{e_1}{A_1}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{A_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\epair{e_1}{e_2}}{\tensor{A_1}{A_2}}$
+        & = & $\comp{\dup_{\Gamma}}{(\tensor{g_1}{g_2})}$
+        \\ \hline
+          \multirow{3}{*}{$\textsc{App}$}
+        & $\typerulel{\Gamma}{e_1}{A}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{\homCM{A}{B}}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\eapp{e_2}{e_1}}{B}$
+        & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_1}{\sem{\Gamma}})}}{\uncurry_{\sem{\Gamma}}\,g_2}$
+        \\ \hline
+          \multirow{3}{*}{$\textsc{App}\lambda\dagger$}
+        & $\typerulel{\Gamma}{e_1}{A}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{\homD{A}{B}}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\eapp{e_2}{e_1}}{B}$
+        & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_1}{\sem{\Gamma}})}}{\uncurry_{\sem{\Gamma}}\,(\f{g_2})}$
+        \\ \hline
+          \multirow{2}{*}{\textsc{Lam}}
+        & $\typerulel{\Gamma, v\colon A}{e}{B}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\elam{v}{e}}{\homCM{A}{B}}$
+        & = & $\curry_{\sem{\Gamma}}\,g$
+        \\ \hline
+          \multirow{4}{*}{\textsc{Let}}
+        & $\typerulel{\Gamma}{e_1}{A}$
+        & = & $g_1$ \\
+        & $\typerulelp{\Delta}{p_2}{A}$
+        &  \\
+        & $\typerulel{\Delta, \Gamma}{e_3}{B}$
+        & = & $g_3$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\elet{p_2}{e_1}{e_3}}{B}$
+        & = & $\comp{\juncurry_{\sem{\Gamma}, I, \sem{\Delta}}\,g_1}{g_3}$
+        \\ \hline \hline
+        Name & Typing (Patterns) \\ \hline
+          \textsc{VarP}
+        & $\typerulelp{v\colon A}{v}{A}$
+        \\ \hline
+          \textsc{UnitP}
+        & $\typerulelp{\emptyset}{\eunit}{\tunit}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{TupP}}
+        & $\typerulelp{\Delta_1}{p_1}{A_1}$
+        &  \\
+        & $\typerulelp{\Delta_2}{p_2}{A_2}$
+        &  \\ \cline{2-2}
+        & $\typerulelp{\Delta_1, \Delta_2}{\epair{p_1}{p_2}}{\tensor{A_1}{A_2}}$
+        & 
+        \\ \hline
+    \end{tabular}}
+    \caption{Typing and denotational semantics}
+    \label{fig:semantics1}
+\end{figure}
+
+
+The syntax of Emordnilap is given in \Cref{fig:syntax1}. As types we use the same notation as the objects of $\C$ for simplicity. So \emph{type} and \emph{object} are used synonymously even though some objects may be unreachable as types of a program fragment. The signature contains the set of constant symbols $C$ and their mapping to $\C$ as given in \Cref{fig:signature}. $\sem{-}_{CT}$ maps a constant symbol to its type, $\sem{-}_C$ maps a constant symbol $c \in C$ to a morphism in $\C(I, \sem{c}_{CT})$. The typing relation $\typerulel{\Gamma}{e}{A}$ and denotational semantics $\semL{\typerulel{\Gamma}{e}{A}} \in \C_\monad(\sem{\Gamma}, A)$ for the inconversible fragment of Emordnilap are given in \Cref{fig:semantics1}.
+
+Given a cartesian closed category $\C$ the semantics are almost exactly the same as Moggi's computational lambda calculus. The differences are
+\begin{itemize}
+    \item We don't have $\pi_1$ and $\pi_2$ to handle products, but pattern matching with $\wlet$. We can show though that the expression $\elam{\evar{x}}{\elet{\epair{\evar{a}}{\evar{b}}}{\evar{x}}{\evar{a}}}$ has the same semantics as $\pi_1$ and there is an analogous expression for $\pi_2$.
+    \item We evaluate the argument in a function call before the function.
+    \item And of course we added the type $\tjs{A}{B}$ and the rule $\textsc{App}_{\lambda\dagger}$.
+\end{itemize}
+This language is essentially what can already be achieved in functional languages where reversible programs can be created and used, but only in a point-free style. The only advancement we have is that the projection function is applied implicitly whereas in a normal functional language it would have to be applied explicitly. This rule exists to make the close relationship between the language fragments in the next section more intuitive.
+
+\begin{lemma}
+    $\typerulelp{\Delta}{p}{A}$ implies $\sem{\Delta} = A$.
+\end{lemma}
+\begin{proof}
+    Simple induction.
+\end{proof}
+
+\begin{lemma}[Weakening${}_\lambda$] For all well-typed terms
+    \begin{lemmalist}
+    \item \label{lem:weakening-lambda-types} $\typerulel{\Gamma}{e}{A}$ implies $\typerulel{\Gamma, \Gamma'}{e}{A}$ and
+    \item \label{lem:weakening-lambda-sem} $\semL{\typerulel{\Gamma, \Gamma'}{e}{A}} = \C_\monad^{\tensor{\id_{\sem{\Gamma}}}{\terminal_{\sem{\Gamma'}}}}(\semL{\typerulel{\Gamma}{e}{A}})$
+    \end{lemmalist}
+\end{lemma}
+\begin{proof}
+    (\ref{lem:weakening-lambda-types}) Simple induction.
+    
+    (\ref{lem:weakening-lambda-sem}) Induction over typing derivation.
+    \begin{itemize}
+    \item \textsc{Const}, \textsc{Var}, \textsc{Unit} boil down to  $\comp{(\tensor{\id_{\sem{\Gamma}}}{\terminal_{\sem{\Gamma'}}})}{\terminal_{\sem{\Gamma}}} = \tensor{\terminal_{\sem{\Gamma}}}{\terminal_{\sem{\Gamma'}}} = \terminal_{\sem{\Gamma, \Gamma'}}$.
+    \item \textsc{Tup}, \textsc{App}, \textsc{App$\lambda\dagger$}, \textsc{Lam} and \textsc{Let} use the (di-)naturality of $\dup$, $\curry$ and $\juncurry$ to commute them with $\tensor{\id_{\sem{\Gamma}}}{\terminal_{\sem{\Gamma'}}}$. Specifically we have $\comp{\dup}{(\tensor{f}{f})} = \comp{f}{\dup}$, $\curry\,(\comp{(\tensor{\id}{f})}{g}) = \comp{f}{(\curry\,g)}$ and $\comp{\juncurry\,(\comp{f}{g})}{(\tensor{\id}{f})} = \comp{(\tensor{\id}{f})}{\juncurry\,g}$ when $f = \tensor{\id_{\sem{\Gamma}}}{\terminal_{\sem{\gamma'}}}$.
+    \end{itemize}
+\end{proof}
+
+\section{Ambidirectional Emordnilap}
+
+\begin{figure}
+    \centering
+    {\def\arraystretch{1.5}
+    \begin{tabular}{l|l c l l}
+          Name & Typing & & Semantics & Hom-set \\
+          \hline\hline
+          \textsc{Var}$\dagger$
+        & $\typeruled{\Gamma}{v\colon A}{v}{\D}{A}$
+        & = & $\id_{A}$ & $\D^{\sem{\Gamma}}(A, A)$
+        \\ \hline
+          \textsc{Unit}$\dagger$
+        & $\typeruled{\Gamma}{\emptyset}{\eunit}{\D}{I}$
+        & = & $\id_{I}$ & $\D^{\sem{\Gamma}}(I, I)$
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}$\dagger$}
+        & $\typeruled{\Gamma}{\Delta_1}{e_1}{\D}{A_1}$ 
+        & = & $g_1$ & $\D^{\sem{\Gamma}}(\sem{\Delta_1}, A_1)$ \\ 
+        & $\typeruled{\Gamma}{\Delta_2}{e_2}{\D}{A_2}$
+        & = & $g_2$ & $\D^{\sem{\Gamma}}(\sem{\Delta_2}, A_2)$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_2}{\epair{e_1}{e_2}}{\D}{\tensor{A_1}{A_2}}$
+        & = & $\tensor{g_1}{g_2}$ & $\D^{\sem{\Gamma}}(\tensor{\sem{\Delta_1}}{\sem{\Delta_2}}, \tensor{A_1}{A_2})$
+        \\ \hline
+          \multirow{3}{*}{\textsc{App}$\dagger$}
+        & $\typeruled{\Gamma}{\Delta}{e_1}{\D}{A}$
+        & = & $g_1$ & $\D^{\sem{\Gamma}}(\sem{\Delta}, A)$ \\ 
+        & $\typerulel{\Gamma}{e_2}{\homJ{A}{\D}{B}}$ 
+        & = & $g_2$ & $\C_\monad(\sem{\Gamma}, \homD{A}{B})$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\eapp{e_2}{e_1}}{\D}{B}$
+        & = & $\comp{g_1}{g_2}$ & $\D^{\sem{\Gamma}}(\sem{\Delta}, B)$
+        \\ \hline
+          \multirow{4}{*}{\textsc{Let}$\dagger$}
+        & $\typeruled{\Gamma, \Delta_3}{\Delta_1}{e_1}{\D}{A}$ 
+        & = & $g_1$ & $\D^{\tensor{\sem{\Gamma}}{\sem{\Delta_3}}}(\sem{\Delta_1}, A)$ \\
+        & $\typerulelp{\Delta_2}{p_2}{A}$ \\
+        & $\typeruled{\Gamma}{\Delta_2, \Delta_3}{e_3}{\D}{B}$
+        & = & $g_3$ & $\D^{\sem{\Gamma}}(\tensor{\sem{\Delta_2}}{\sem{\Delta_3}}, B)$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_3}{\elet{p_2}{e_1}{e_3}}{\D}{B}$
+        & = & $\comp{\juncurry[\D^{\sem{\Gamma}}]\,(\curry_{\sem{\Delta_3}}\,g_1)}{g_3}$ 
+        & $\D^{\sem{\Gamma}}(\tensor{\sem{\Delta_1}}{\sem{\Delta_3}}, B)$
+        \\ \hline
+          \multirow{2}{*}{\textsc{Lam}$\dagger$}
+        & $\typeruled{\Gamma}{v\colon A}{e}{\D}{B}$
+        & = & $g$ & $\D{\sem{\Gamma}}(A, B)$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\elam{v}{e}}{\homJ{A}{\D}{B}}$
+        & = & $g$ & $\C_\monad(\sem{\Gamma}, \homD{A}{B})$
+        \\ \hline
+    \end{tabular}}
+    \caption{Categorical semantics for Emordnilap}
+    \label{fig:semantics2}
+\end{figure}
+
+We don't need to modify the syntax and signature of Emordnilap for conversibility. The typing and semantics, of course, is different and the additional rules are given in \Cref{fig:semantics2}. We introduce a new typing relation $\typeruled{\Gamma}{\Delta}{e}{A}$ for conversible expressions which has a linear context $\Delta$ and a non-linear context $\Gamma$. Its semantics is a morphism in $\D^{\sem{\Gamma}}(\sem{\Delta}, A) = \C(\sem{\Gamma}, \homD{\sem{\Delta}}{A})$.    
+
+\begin{lemma}
+    $\f{\semD{\typeruled{\Gamma}{\Delta}{e}{\D}{A}}^\D}^{\sem{\Gamma}} = \semD{\typeruled{\Gamma}{\Delta}{e}{\C_\monad}{A}}^{\C_\monad}$
+\end{lemma}
+\begin{proof}
+    We assumed that $\f{-}$ is a symmetric premonoidal functor that commutes with $\juncurry$ which is all the structure we use in $\semD{-}$. 
+\end{proof}
+\begin{lemma}
+    $\semD{\typeruled{\Gamma}{\Delta}{e}{\C_\monad}{A}}^{\C_\monad} \cong \semL{\typerulel{\Gamma, \Delta}{e}{A}}^{\C_\monad}$
+\end{lemma}
+\begin{proof}
+    By structural induction over the typing derivation and Lemma \ref{lem:weakening-lambda-sem} to make the contexts agree.
+\end{proof}
+
+\begin{theorem} For all well-typed terms
+    \begin{lemmalist}
+    \item $\typeruled{\Gamma}{\Delta}{e}{j}{A}$ implies $\typerulel{\Gamma, \Delta}{e}{A}$
+    \item $\f{\semD{\typeruled{\Gamma}{\Delta}{e}{\D}{A}}}^{\sem{\Gamma}} = \curry_{\sem{\Gamma}}\,\semL{\typerulel{\Gamma, \Delta}{e}{A}}$
+    \end{lemmalist}
+\end{theorem}
+\begin{proof}
+    By the previous lemmas.
+\end{proof}
+
+ 
+\section{Syntactic Sugar}
+
+\begin{align}
+    \semL{\elam{e_1}{e_2}} &= \semL{\elam{x}{\elet{e_1}{x}{e_2}}} \\
+    \semD{\elet{\eapp{e_3}{e_2}}{e_1}{e_4}} &= \semD{\elet{e_2}{\eapp{\rev{e_3}{e_1}}}{e_4}} \\
+    \semD{\elet{(\elet{e_3}{e_4}{e_2})}{e_1}{e_5}} &= \semD{\elet{e_2}{e_1}{\elet{e_4}{e_3}{e_5}}}
+\end{align}
+
+\begin{lemma}
+    For well-typed terms
+    \begin{align} 
+        \semD{\typerulel{\Gamma}{\rev{(\elam{e_1}{e_2})}}{\homD{A}{B}}} &= \semD{\typerulel{\Gamma}{\elam{e_2}{e_1}}{\homD{A}{B}}}
+    \end{align}
+\end{lemma}
+
+\appendix
+
+\section{Notation and Assumptions}
+
+For brevity we will omit the isomorphism $\C(I, \homC{A}{B}) \cong \C(A, B)$. 
+
+\begin{lemma}
+    $\juncurry[\C]$ is natural in $A$ and $B$, i.e., the following commutes for all $f\colon A' \to A$, $g\colon B \to B'$.
+    \begin{center}
+    \begin{tikzcd}[column sep=8em]
+    \C(C, \homC{A}{B}) \ar[r, "{\C(\id_C, \homC{g}{h})}"] \ar[d, "{\juncurry[\C]}"] & \C(C, \homC{A'}{B'}) \ar[d, "{\juncurry[\C]}"] \\
+    \C(\tensor{A}{C}, \tensor{B}{C}) \ar[r, "{\C(\tensor{g}{\id_C}, \tensor{h}{\id_C})}"] & \C(\tensor{A'}{C}, \tensor{B'}{C})
+    \end{tikzcd}
+    \end{center}
+\end{lemma}
+\begin{proof}
+    Let $g\colon A' \to A$, $h\colon B \to B'$.
+    \begin{align}
+        & \juncurry\,(\comp{f}{\homC{g}{h}}) \\
+      = & \comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\uncurry\,(\comp{f}{\homC{g}{h})}}{\id_C})} \\
+      = & \comp{(\tensor{\id_A}{\dup_C})}{(\tensor{(\comp{(\tensor{g}{\id_C})}{\comp{\uncurry\,f}{h}})}{\id_C})} \\
+      = & \comp{(\tensor{g}{\id_C})}{\comp{\juncurry[\C]\,f}{(\tensor{h}{\id_C})}}
+    \end{align}
+\end{proof}
+
+Let $(\monad\colon \C \to \C, \munit\colon \Id \to \monad, \mjoin\colon  \monad^2 \to \monad)$ be a monad and $\C_\monad$ be the corresponding Kleisli-category. Denote by $\mstrength\colon \tensor{(\monad\,A)}{B} \to \monad\,(\tensor{A}{B}) = \uncurry\,\munit_{\tensor{A}{B}}$ the canonical strength which evaluates the left component before the right component.
+Let $\juncurry[\C_\monad]_{A,B,C} \colon \C(C, \homC{A}{\monad\,B}) \to \C(\tensor{A}{C}, \monad\,(\tensor{B}{C}))$ denote the mapping $f \mapsto \comp{(\juncurry[\C]\,f)}{\mstrength}$.
+
+
+
+Notice that the Kleisli-category over a closed category is not in general closed. We do however have the isomorphism $\C_M(\tensor{A}{C}, B) = \C(\tensor{A}{C}, \monad B) \cong \C(C, \homCM{A}{B})$.
+
+
+\begin{lemma}
+    $\curry\,(\comp{(\tensor{f}{h})}{\comp{x}{g}}) = \comp{h}{\comp{(\curry\,x)}{\homC{f}{g}}}$ and \\
+    $\uncurry\,(\comp{h}{\comp{x}{\homC{f}{g}}}) = \comp{(\tensor{f}{h})}{\comp{\uncurry\,x}{g}}$
+\end{lemma}
+\begin{proof}
+    Naturality of the $\curry$/$\uncurry$ isomorphisms.
+\end{proof}
+
+For the rest of the paper we assume that all categories are $\C$-enriched symmetric premonoidal (including $\C$ itself) with the same objects as $\C$ where $\C$ is a premonoidal closed category, and that all functors are $\C$-enriched symmetric premonoidal identity-on-objects functors.
+
+\subsection{Contextual categories}
+
+\section{Categorical semantics of the inconversible fragment of Emordnilap}
+
+
+\begin{figure}
+    \centering
+    for $j \in \{\C_\monad, \D\}$
+    \begin{align}
+        \sem{-}_{CT} &\colon C \to \mathrm{obj}(\C) \\
+        \sem{c_i}_{C\phantom{T}} &\colon C \to \C(I, \monad\,\sem{c_i}_{CT}) \\
+        \sem{\id[j]_A}_{CT} &= \homJ{A}{j}{A} \\
+        \sem{\id[j]_A}_{C\phantom{T}} &= \comp{\name[j]{\id}_A}{\munit} \\
+        \sem{(\comp[j]{}{})_{A,B,C}}_{CT} &= \homCM{(\tensor{\homJ{A}{j}{B}}{\homJ{B}{j}{C}})}{\homJ{A}{j}{C}} \\
+        \sem{(\comp[j]{}{})_{A,B,C}}_{C\phantom{T}} &= \comp{\name[j]{\comp{-}{-}}_{A,B,C}}{\munit} \\
+        \sem{(\tensor[j]{}{})_{A,B,C,D}}_{CT} &= \homCM{(\tensor{\homJ{A}{j}{B}}{\homJ{C}{j}{D}})}{\homJ{\tensor{A}{C}}{j}{\tensor{B}{D}}} \\
+        \sem{(\tensor[j]{}{})_{A,B,C,D}}_{C\phantom{T}} &= \comp{\name[j]{\tensor{-}{-}}_{A,B,C,D}}{\munit} \\
+        \sem{\juncurry[j]_{A,B,C}}_{CT} &= \homCM{\homC{C}{\homJ{A}{j}{B}}}{\homJ{\tensor{A}{C}}{j}{\tensor{B}{C}}} \\    
+        \sem{\juncurry[j]_{A,B,C}}_{C\phantom{T}} &= \comp{\name[j]{\juncurry}_{A,B,C}}{\munit} \\
+        \sem{\curry_{A,B,C}}_{CT} &= \homCM{\homC{\tensor{C}{A}}{B}}{\homCM{C}{\homC{A}{B}}} \\
+        \sem{\curry_{A,B,C}}_{C\phantom{T}} &= \comp{\comp{\name[\C]{\curry}_{A,B,C}}{\comp{\name[\C]{\comp{-}{\name[\C]{\comp{-}{\munit_{\homC{A}{B}}}}}}}{\name[\C]{\comp{-}{\munit_{\homC{C}{\homCM{A}{B}}}}}}}}{\munit} \\
+        \sem{(\rev{})_{A,B}}_{CT} &= \homCM{\homD{A}{B}}{\homD{B}{A}} \\
+        \sem{(\rev{})_{A,B}}_{C\phantom{T}} &= \comp{\comp{\name[\C]{\rev{-}}_{A,B}}{\name[\C]{\comp{-}{\munit_{\homD{B}{A}}}}}}{\munit} \\
+        \sem{(\f{})_{A,B}}_{CT} &= \homCM{\homD{A}{B}}{\homCM{A}{B}} \\
+        \sem{(\f{})_{A,B}}_{C\phantom{T}} &= \comp{\comp{\name[\C]{\f{-}}_{A,B}}{\name[\C]{\comp{-}{\munit_{\homCM{A}{B}}}}}}{\munit}
+    \end{align} 
+    \caption{Signature}
+    \label{fig:signature}
+\end{figure}
+
+
+
+\section{Conversible Emordnilap}
+ 
+\iffalse
+\begin{figure}
+    \centering
+    {\def\arraystretch{1.5}
+    \begin{tabular}{l|l c l}
+          Name & Typing & & Semantics ($\semD{-}$) \\
+          \hline\hline
+          \textsc{Const}
+        & $\typeruled{\Gamma}{\Delta}{c_i}{\C_\monad}{C_i}$
+        & = & $\gamma \vdash \elam{\eunit}{c_i}$ 
+        \\ \hline
+          \textsc{Var}$\lambda$
+        & $\typeruled{v_1\colon A_1, \dots}{v_m\colon A_m, \dots}{v_i}{\C_\monad}{A_i}$
+        & = & $v_1\colon A_1, \dots \vdash \elam{(v_m, \dots)}{v_i}$ 
+        \\ \hline
+          \textsc{Var}$\dagger$
+        & $\typeruled{\Gamma}{v\colon A}{v}{\D}{A}$
+        & = & $\gamma \vdash \id[\D]_{\sem{A}}$
+        \\ \hline
+          \textsc{Unit}$\lambda$
+        & $\typeruled{\Gamma}{\Delta}{\eunit}{\C_\monad}{\tunit}$
+        & = & $\gamma \vdash \id[\C_\monad]_{\sem{\tunit}}$ 
+        \\ \hline
+          \textsc{Unit}$\dagger$
+        & $\typeruled{\Gamma}{\emptyset}{\eunit}{\D}{\tunit}$
+        & = & $\gamma \vdash \id[\D]_{\sem{\tunit}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}$\dagger$}
+        & $\typeruled{\Gamma}{\Delta_1}{e_1}{\D}{A_1}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\Delta_2}{e_2}{\D}{A_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_2}{\epair{e_1}{e_2}}{\D}{\tensor{A_1}{A_2}}$
+        & = & $\gamma \vdash \tensor[\D]{\eapp{g_1}{\gamma}}{\eapp{g_2}{\gamma}}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}$\lambda$}
+        & $\typeruled{\Gamma}{\Delta}{e_1}{\C_\monad}{A_1}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\Delta}{e_2}{\C_\monad}{A_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\epair{e_1}{e_2}}{\C_\monad}{\tensor{A_1}{A_2}}$
+        & = & $\gamma \vdash \comp[\C_\monad]{\dup[\C_\monad]_{\sem{\Delta}}}{(\tensor[\C_\monad]{\eapp{g_1}{\gamma}}{\eapp{g_2}{\gamma}})}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{App}}
+        & $\typeruled{\Gamma}{\Delta}{e_1}{j}{A}$
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\emptyset}{e_2}{\C_\monad}{\homJ{A}{j}{B}}$ 
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\eapp{e_2}{e_1}}{j}{B}$
+        & = & $\gamma \vdash \comp[j]{\eapp{g_1}{\gamma}}{\eapp{\eapp{g_2}{\gamma}}{\eunit}}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{App}$\dagger\lambda$}
+        & $\typeruled{\Gamma}{\Delta}{e_1}{\C_\monad}{A}$
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\emptyset}{e_2}{\C_\monad}{\homJ{A}{\D}{B}}$ 
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\eapp{e_2}{e_1}}{\C_\monad}{B}$
+        & = & $\gamma \vdash \comp[\C_\monad]{\eapp{g_1}{\gamma}}{\f{(\eapp{\eapp{g_2}{\gamma}}{\eunit})}}$
+        \\ \hline
+          \multirow{2}{*}{\textsc{Lam}}
+        & $\typeruled{\Gamma}{v\colon A}{e}{j}{B}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\emptyset}{\elam{v}{e}}{\C_\monad}{\homJ{A}{j}{B}}$
+        & = & $\gamma \vdash \elam{\eunit}{\eapp{g}{\gamma}}$
+        \\ \hline
+          \multirow{4}{*}{\textsc{Let}$\dagger$}
+        & $\typeruled{\Gamma, \Delta_3}{\Delta_1}{e_1}{\D}{A}$ 
+        & = & $g_1$ \\ 
+        & $\typerulelp{\Delta_2}{p_2}{A}$ \\
+        & $\typeruled{\Gamma}{\Delta_2, \Delta_3}{e_3}{\D}{B}$
+        & = & $g_3$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_3}{\elet{p_2}{e_1}{e_3}}{\D}{B}$
+        & = & $\gamma \vdash \comp[\D]{\juncurry[\D]\,(\eapp{\eapp{\curry_{\sem{\Delta_3}}}{g_1}}{\gamma})}{\eapp{g_3}{\gamma}}$ 
+        \\ \hline
+          \multirow{4}{*}{\textsc{Let}$\lambda$}
+        & $\typeruled{\Gamma}{\Delta}{e_1}{\C_\monad}{A}$ 
+        & = & $g_1$ \\ 
+        & $\typerulelp{\Delta_2}{p_2}{A}$ \\
+        & $\typeruled{\Gamma}{\Delta_2, \Delta}{e_3}{\C_\monad}{B}$
+        & = & $g_3$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\elet{p_2}{e_1}{e_3}}{\C_\monad}{B}$
+        & = & $\gamma \vdash \comp[\C_\monad]{\juncurry[\C_\monad]\,(\eapp{g_1}{\gamma})}{\eapp{g_3}{\gamma}}$
+        \\ \hline
+    \end{tabular}}
+    \caption{Categorical semantics for Emordnilap}
+    \label{fig:semantics2}
+\end{figure}
+\fi
+ 
+ 
+
+\section{Syntactic sugar}
+
+\end{document}

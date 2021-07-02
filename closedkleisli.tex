@@ -1,0 +1,244 @@
+\documentclass[runningheads,envcountsame]{llncs}
+
+\usepackage[utf8]{inputenc}
+\usepackage[normalem]{ulem}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,hyperref,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx,ulem,tikz-cd,centernot}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in, top=0.4in]{geometry}
+\usepackage{xcolor}
+
+\include{definitions}
+\newcommand{\monad}{M}
+\newcommand{\homCM}[3][]{\homJ{#2}{\C_\monad}{#3}}
+
+\begin{document}
+
+\title{Kleisli-closed Categories}
+\maketitle
+
+\section{Initial Thoughts}
+
+The Kleisli-category of a (canonically strong) monad $\monad$ over a monoidal closed category $\C$ has properties that are close to that of a monoidal closed category. For example it inherits the internal hom-objects and two mappings similar two the isomorphisms of the hom-adjunction
+\begin{align}
+    \curry[\C_\monad]\,m &= C \xrightarrow{\curry[\C]\,(\tensor{A}{C} \xrightarrow{m} \monad\,B)} \C(A, \monad\,B) \xrightarrow{\munit} \monad\,\C(A, \monad\,B) \\
+    \uncurry[\C_\monad]\,n &= \tensor{A}{C} \xrightarrow{\tensor{A}{n}} \tensor{A}{\monad\,\C(A, B)} \xrightarrow{\mstrength} \monad\,(\tensor{A}{\C(A, \monad\,B)}) \xrightarrow{\eval_{A, \monad\,B}^*} B 
+\end{align}
+
+We have $\comp{\curry[\C_\monad]}{\uncurry[\C_\monad]} = \id_{\C(\tensor{A}{C}, B)}$ but $\comp{\uncurry[\C_\monad]}{\curry[\C_\monad]} \neq \id_{\C(C, \C(A, B))}$.
+
+We have that $\curry[\C_\monad]$ is natural in $A$ and $B$, but not in $C$. $\curry[\C_\monad]\,(\comp{\tensor{A}{h}}{\comp{\mstrength}{m^*}}) = \comp{h}{(\curry[\C_\monad] m)^*}$ in general only if $h = \comp{h'}{\munit}$.
+
+It is quite tedious to work in $\C$ and keep track of $\munit$, $\mstrength$ and $-^*$ instead of working entirely in $\C_\monad$. Unfortunately we know of no axiomatic description of a Kleisli-category over a closed monoidal category. (Even closed Freyd-categories require two categories and a functor.) The following section will remedy this situation.
+
+\section{Preclosed Premonoidal Categories}
+
+\begin{definition}
+    A \emph{premonoidal category with preclosed structure} is a symmetric premonoidal category $\C$ equipped with
+    \begin{itemize}
+        \item an object $\C(A, B)$ for all pairs of objects $A$ and $B$,
+        \item a morphism $\eval_{A, B}\colon \tensor{A}{\C(A, B)} \to B$ for all pairs of objects $A$ and $B$,
+        \item a morphism $\curry\,m\colon C \to \C(A, B)$ for every morphism $m\colon \tensor{A}{C} \to B$.
+    \end{itemize}
+    
+    For morphisms $f\colon A' \to A$ and $g\colon B \to B'$ in a premonoidal category with preclosed structure define the morphism 
+    \begin{gather}
+        \C(f, g) = \C(A, B) \xrightarrow{\curry\,\left(\tensor{A'}{\C(A, B)} \xrightarrow{\tensor{f}{\C(A', B')}} \tensor{A}{\C(A, B)} \xrightarrow{\eval_{A, B}} B \xrightarrow{g} B'\right)} \C(A',B') \label{def:hom-functor}
+    \end{gather}
+    
+    For a morphism $n\colon C \to \C(A, B)$ in a premonoidal category with preclosed structure define the morphism
+    \begin{gather}
+        \uncurry\,n = \tensor{A}{C} \xrightarrow{\tensor{A}{n}} \tensor{A}{\C(A, B)} \xrightarrow{\eval_{A, B}} B \label{def:uncurry}
+    \end{gather}
+    
+    A \emph{pure} morphism in a premonoidal category with preclosed structure is a morphism $h\colon C' \to C$ such that for every morphism $m\colon \tensor{A}{C} \to B$
+    \begin{align}
+        \curry\,(\comp{\tensor{A}{h}}{m}) = \comp{h}{\curry\,m} \label{def:pure}
+    \end{align}
+    
+    A \emph{preclosed premonoidal category} is a premonoidal category with preclosed structure $\C$ such that
+    \begin{definitionlist}
+        \item \label{def:preclosed-central} all pure morphisms are central,
+        \item \label{def:preclosed-premonoidal} the symmetric premonoidal isomorphisms ($\assoc$, $\unitl$, $\unitr$, $\swap$) are pure,
+        \item \label{def:preclosed-eval} $\curry\,m$ is the unique pure morphism that makes the following diagram commute for all $m\colon \tensor{A}{C} \to B$
+        \begin{equation}
+            \begin{tikzcd}
+                \tensor{A}{\C(A, B)} \ar[r, "\eval_{A, B}"] & B \\
+                \tensor{A}{C} \ar[u, "\tensor{A}{\curry\,m}"] \ar[ur, swap, "m"]
+            \end{tikzcd} \label{def:preclosed-eval-diag}
+        \end{equation}
+    \end{definitionlist}
+\end{definition}
+
+Some observations.
+\begin{lemma}
+    Let $\C$ be a preclosed premonoidal category and $m\colon \tensor{A}{C} \to B$.
+    \begin{lemmalist}
+    \item \label{lem:curry-pure} All $\curry\,m$ are pure.
+    \item \label{lem:hom-functor-pure} All $\C(f, g)$ are pure for $f\colon A' \to A$ and $g\colon B \to B'$
+    \item \label{lem:id-pure} $\id$ is pure.
+    \item \label{lem:pure-composition-pure} The pure morphisms are closed under composition.
+    \item \label{lem:pure-tensor-pure} The pure morphisms are closed under tensor functors.
+    \item \label{lem:curry-eval} $\curry\,\eval_{A, B} = \id_\C(A, B)$.
+    \item \label{lem:curry-natural} $\curry$ is natural in $A$ and $B$ and pure-natural in $C$.
+    \item \label{lem:hom-functor} $\C(-, -)$ is a functor.
+    \item \label{lem:eval-natural} $\eval_{A, B}$ is natural in $B$ and dinatural in $A$.
+    \item \label{lem:curry-uncurry} $\uncurry\,(\curry\,m) = m$.
+    \item \label{lem:pure-uncurry-curry} $n\colon C \to \C(A, B)$ is pure if and only if $\curry\,(\uncurry\,n) = n$.
+    \item \label{lem:pure-via-unit-hom} $h\colon C' \to C$ is pure if and only if $\comp{h}{\curry\,\unitl_C^{-1}} = \curry\,(\comp{\unitl_C^{-1}}{h})$.
+    \item $\phi_A = A \xrightarrow{\curry\,\unitl_A^{-1}} \C(I, A)$ is not a natural isomorphism with inverse $\phi_A^{-1} = \C(I, A) \xrightarrow{\unitl} \tensor{I}{\C(I, A)} \xrightarrow{\eval_{I, A}} A$. We only have $\comp{\phi}{\phi^{-1}} = \id$.
+    \end{lemmalist}    
+\end{lemma}
+\begin{proof}
+    (\ref{lem:curry-pure}) By Definition \ref{def:preclosed-eval}.
+    
+    (\ref{lem:hom-functor-pure}) By \Cref{def:hom-functor} and Lemma \ref{lem:curry-pure}.
+    
+    (\ref{lem:id-pure}) $\curry\,(\comp{\tensor{A}{\id}}{m}) = \curry\,m = \comp{\id}{\curry\,m}$
+    
+    (\ref{lem:pure-composition-pure}) Let $f$ and $f'$ be pure morphisms.
+    \begin{align}
+        \curry\,(\comp{\tensor{A}{(\comp{f}{f'})}}{m}) &= \curry\,(\comp{\tensor{A}{f}}{\comp{\tensor{A}{f'}}{m}}) \\
+        &= \comp{f}{\curry\,(\comp{\tensor{A}{f'}}{m})} \\
+        &= \comp{\comp{f}{f'}}{\curry\,m}
+    \end{align}
+    
+    (\ref{lem:pure-tensor-pure}) Let $m\colon \tensor{A}{(\tensor{D}{C})} \to B$ and $h\colon C' \to C$.
+    \begin{align}
+        \curry\,(\comp{\tensor{A}{(\tensor{D}{h})}}{m}) &=  \\
+        &= \comp{\tensor{D}{h}}{\curry\,m} \\
+    \end{align}
+    
+    (\ref{lem:curry-eval}) From \Cref{def:preclosed-eval-diag} with $m = \eval_{A, B}$, Lemma \ref{lem:id-pure} and the uniqueness of $\curry\,m$ we get the following commuting diagram.
+    \begin{equation}
+    \begin{tikzcd}
+        \tensor{A}{\C(A, B)} \ar[r, "\eval_{A, B}"] & B \\
+        \tensor{A}{\C(A, B)} \ar[u, bend left, "\tensor{A}{\curry\,\eval_{A, B}}"] \ar[u, swap, bend right, "\tensor{A}{\id_{\C(A, B)}}"] \ar[ur, swap, bend right, "\eval_{A, B}"]
+    \end{tikzcd}
+    \end{equation}
+    
+    (\ref{lem:curry-natural}) From \Cref{def:preclosed-eval-diag} for $m$, $\comp{\tensor{f}{C}}{\comp{m}{g}}$ and $\comp{\tensor{f}{\C(A, B)}}{\comp{\eval_{A, B}}{g}}$, Lemma \ref{lem:hom-functor-pure}, centrality of $\curry\,m$ from Lemma \ref{lem:curry-pure} and Definition \ref{def:preclosed-central} and the uniqueness of $\curry\,m$ we get the following commuting diagram. The left triangle contains the naturality condition for $A$ and $B$.
+    \begin{equation}
+    \begin{tikzcd}
+        \tensor{A'}{\C(A', B')} \ar[rrr, "\eval_{A', B'}"] & & & B' \\
+        & \tensor{A'}{\C(A, B)} \ar[ul, "{\tensor{A'}{\C(f, g)}}"] \ar[ul, swap, "{\tensor{A'}{\curry\,(\comp{\tensor{f}{\C(A, B)}}{\comp{\eval_{A, B}}{g}})}}"] \ar[r, "\tensor{f}{\C(A, B)}"] & \tensor{A}{\C(A, B)} \ar[r, "\eval_{A, B}"] & B \ar[u, swap, "g"] \\
+        \tensor{A'}{C} \ar[uu, "\tensor{A'}{\curry\,(\comp{\tensor{f}{C}}{\comp{m}{g}})}"] \ar[ur, "\tensor{A'}{\curry\,m}"] \ar[rr, swap, "\tensor{f}{C}"] & & \tensor{A}{C} \ar[u, "\tensor{A}{\curry\,m}"] \ar[ur, swap, "m"]
+    \end{tikzcd}
+    \end{equation}
+    
+    What we mean by pure-natural in $C$ is exactly the definition of pure.
+    
+    (\ref{lem:hom-functor}) 
+    \begin{align}
+        \C(\id_A, \id_B) &= \curry\,(\comp{\tensor{\id_A}{\C(A, B)}}{\comp{\eval_{A, B}}{\id_B}}) \\
+                         &= \curry\,\eval_{A, B} \\
+                         &= \id_\C(A, B) \\
+        \C(\comp{f'}{f}, \comp{g}{g'}) &= \curry\,(\comp{\tensor{(\comp{f'}{f})}{\C(A, B)}}{\comp{\eval_{A, B}}{(\comp{g}{g'})}}) \\
+          &= \curry\,(\comp{\comp{\tensor{f'}{\C(A, B)}}{(\tensor{f}{\C(A, B)}}}{\comp{\eval_{A, B}}{\comp{g)}{g'}}}) \\
+          &= \curry\,(\comp{\comp{\tensor{f'}{\C(A, B)}}{\C(f, g)}}{g'}) \\
+          &= \comp{\C(f, g)}{\C(f', g')}
+    \end{align}
+    
+    (\ref{lem:eval-natural}) The following diagram is both the naturality of $\eval_{A, B}$ in $B$ as well as \Cref{def:preclosed-eval-diag} with $m = \comp{\eval_{A, B}}{g}$.
+    \begin{equation}
+        \begin{tikzcd}
+            \tensor{A}{\C(A, B')} \ar[r, "\eval_{A, B'}"] & B' \\
+            \tensor{A}{\C(A, B)} \ar[u, "\tensor{A'}{\curry\,(\comp{\eval_{A, B}}{g})}"] \ar[u, swap, "\tensor{A'}{\C(A, g)}"] \ar[r, swap, "\eval_{A, B}"] & B \ar[u, swap, "g"] 
+        \end{tikzcd}
+    \end{equation}
+    
+    The following diagram is both the dinaturality of $\eval_{A, B}$ in $A$ as well as \Cref{def:preclosed-eval-diag} with $m = \comp{\tensor{f}{\C(A, B)}}{\eval_{A, B}}$.
+    \begin{equation}
+        \begin{tikzcd}
+            \tensor{A'}{\C(A', B)} \ar[r, "\eval_{A', B}"] & B \\
+            \tensor{A'}{\C(A, B)} \ar[u, "\tensor{A'}{\curry\,(\comp{\tensor{f}{\C(A, B)}}{\eval_{A, B}})}"] \ar[u, swap, "\tensor{A'}{\C(f, B)}"] \ar[r, swap, "\tensor{f}{\C(A, B)}"] & \tensor{A}{\C(A, B)} \ar[u, swap, "\eval_{A, B}"] 
+        \end{tikzcd}
+    \end{equation}
+    
+    (\ref{lem:curry-uncurry}) $\uncurry\,(\curry\,m) = \comp{\tensor{A}{\curry\,m}}{\eval_{A, B}} = m$
+    
+    (\ref{lem:pure-uncurry-curry}) Let $n$ be pure. Then $\curry\,(\uncurry\,n) = \curry\,(\comp{\tensor{A}{n}}{\eval_{A, B}}) = \comp{n}{\curry\,\eval_{A, B}} = n$.
+    
+    Now let $\curry\,(\uncurry\,n) = n$. So $n$ is pure by Lemma \ref{lem:curry-pure}.
+    
+    (\ref{lem:pure-via-unit-hom})
+    \begin{align}
+        \comp{\phi}{\phi^{-1}} &= \comp{(\curry\,\unitl^{-1})}{\comp{\unitl}{\eval}} \\
+                               &= \comp{\unitl}{\comp{\tensor{I}{(\curry\,\unitl^{-1})}}{\eval}} \\
+                               &= \comp{\unitl}{\unitl^{-1}} \\
+                               &= \id
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    A Kleisli-closed category $\D$ induces a monoidal closed category $\C$ and a $\C$-enriched monad $(\monad, \munit, \mjoin)$ such that the Kleisli-category $\C_\monad$ is isomorphic to $\D$.
+\end{lemma}
+\begin{proof}
+    Let $\C$ be the wide subcategory of $\D$ that contains the closure of all the pure morphisms and $\eval$ under composition and tensor product. $\eval$ is pure in this category because
+    \begin{align}
+        \curry\,(\comp{\tensor{A}{\eval_{A', B}}}{m}) &= \\
+        &= \comp{\eval_{A', B}}{\curry\,m}
+    \end{align}
+    
+    It's a category by the above lemma and monoidal because all morphisms are central. Now let $m\colon \tensor{A}{C} \to B$ and $n\colon C \to \C(A, B)$ be pure morphisms.
+    \begin{align}
+        \C(A, B) &= \D(A, B) \\
+        \uncurry\,(\curry\,m) &= m \\
+        \curry\,(\uncurry\,n) &= n
+    \end{align}
+    Therefore we have an isomorphism $\curry\colon \C(\tensor{A}{C}, B) \cong \C(C, \C(A, B))$ natural in $A$, $B$ and $C$ and so $\C$ is monoidal closed.
+    
+    Now define the following Kleisli-triple
+    \begin{align}
+        M\,A &= \C(I, A) \\
+        \munit &= A \xrightarrow{\phi_A} \C(I, A) \\
+        f^* &= \C(I, A) \xrightarrow{\phi_A^{-1}} A \xrightarrow{f} \C(I, B) \\
+        * &= \C(A, \monad\,B) \xrightarrow{\C(\phi_A^{-1}, \monad\,B)} \C(\monad A, \monad B)
+    \end{align}
+    and show that it is a monad. First note that in $\C$ we have $\comp{\phi^{-1}}{\phi} = \comp{\comp{\unitl}{\eval}}{(\curry\,\unitl^{-1})} = \curry\,(\comp{\comp{\unitl^{-1}}{\unitl}}{\eval}) = \id$, because all morphisms are pure.
+    \begin{align}
+        \munit^* &= \comp{\phi^{-1}}{\phi} \\
+                 &= \comp{\comp{\unitl}{\eval}}{\curry\,\unitl^{-1}} \\
+                 &= \id \\
+        \comp{\munit}{f^*} &= \comp{\phi}{\comp{\phi^{-1}}{f}} = f \\
+        (\comp{f}{g^*})^* &= \comp{\phi^{-1}}{(\comp{f}{\comp{\phi^{-1}}{g}})} \\
+                          &= \comp{(\comp{\phi^{-1}}{f})}{(\comp{\phi^{-1}}{g})} \\
+                          &= \comp{(f^*)}{(g^*)}
+    \end{align}
+    
+    Let $f\colon A \to \D(I, B)$ be pure, i.e., a morphism in $\C_\monad(A, B)$. So $\comp{f}{\phi_B^{-1}} = \comp{f}{\comp{\unitl}{\eval_{I, B}}}$ is a morphism in $\D(A, B)$. Also let $g\colon
+    A \to B$ be a morphism in $\D(A, B)$, then $\comp{\phi_A}{\D(I, g)} = \curry\,(\comp{\unitl^{-1}}{g})$ is pure and so a morphism in $\C_\monad(A, B)$.
+    \begin{align}
+        & \curry\,(\comp{\unitl^{-1}}{\comp{f}{\comp{\unitl}{\eval_{I, B}}}}) &
+        & \comp{\comp{\curry\,(\comp{\unitl^{-1}}{g})}{\unitl}}{\eval_{I,B}} \\
+      = & \curry\,(\comp{\tensor{I}{f}}{\comp{\unitl^{-1}}{\comp{\unitl}{\eval_{I, B}}}}) &
+      = & \comp{\comp{\unitl}{\tensor{I}{\curry\,(\comp{\unitl^{-1}}{g})}}}{\eval_{I,B}} \\
+      = & \curry\,(\comp{\tensor{I}{f}}{\eval_{I, B}}) &
+      = & \comp{\unitl}{\comp{\unitl^{-1}}{g}} \\
+      = & \comp{f}{\curry\,\eval_{A, B}} &
+      = & g \\
+      = & f
+    \end{align}
+    So we have $\C_\monad(A, B) \cong \D(A, B)$.
+\end{proof}
+
+\begin{lemma}
+    The Kleisli-category of a $\C$-enriched monad $(\monad, \munit, -^*)$ over a closed monoidal category $\C$ is a preclosed premonoidal category.
+\end{lemma}
+\begin{proof}
+    Let $\D$ be the Kleisli-category $\C_\monad$.
+    \begin{align}
+        \D(A, B) &= \C(A, \monad\,B) \\
+        \curry[\D]\,f &= \comp{\curry[\C]\,f}{\munit} \\
+        \eval[\D]_{A,B} &= \eval[\C]_{A, \monad\,B} \\
+        \comp[\D]{f}{g} &= \comp[\C]{f}{g^*} \\
+        \tensor[\D]{f}{C} &= \comp{\tensor[\C]{f}{C}}{\comp{M\,(\curry\,\munit_{\tensor{B}{C}})}{\eval\mjoin}} \\
+        \mstrength &= 
+    \end{align}
+    
+    \begin{align}
+        & \curry[\D]\,(\comp[\D]{\tensor[\D]{f}{C}}{\comp[\D]{m}{g}}) \\
+      = & \comp[\C]{\curry[\C]\,(\comp[\C]{\comp[\C]{\tensor[\C]{f}{C}}{\mstrength}}{\comp[\C]{m^*}{g^*}})}{\munit} \\
+      = & \comp[\C]{\comp[\C]{\curry[\C]\,(\comp[\C]{\mstrength}{m^*})}{\C(f, g^*)}}{\munit} \\
+    \end{align}
+\end{proof}
+
+\end{document}

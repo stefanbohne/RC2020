@@ -1,0 +1,878 @@
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.20 of 2017/10/04
+%
+\documentclass[runningheads,envcountsame]{llncs}
+%
+\usepackage[utf8]{inputenc}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in, top=0.5in]{geometry}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+% If you use the hyperref package, please uncomment the following line
+% to display URLs in blue roman font according to Springer's eBook style:
+% \renewcommand\UrlFont{\color{blue}\rmfamily}
+
+\begin{document}
+%
+\title{Emordnilap - A Language for Ambidirectional Programming and its Categorical Semantics}
+%
+\titlerunning{Ambidirectional Programming and its Categorical Semantics}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Stefan Bohne\inst{1}\orcidID{0000-1111-2222-3333} \and
+Second Author\inst{2,3}\orcidID{1111-2222-3333-4444} \and
+Third Author\inst{3}\orcidID{2222--3333-4444-5555}}
+%
+\authorrunning{S. Bohne et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{Princeton University, Princeton NJ 08544, USA \and
+Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
+\email{lncs@springer.com}\\
+\url{http://www.springer.com/gp/computer-science/lncs} \and
+ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
+\email{\{abc,lncs\}@uni-heidelberg.de}}
+%
+\maketitle              % typeset the header of the contribution
+%
+\begin{abstract}
+The abstract should briefly summarize the contents of the paper in
+15--250 words.
+
+\keywords{First keyword  \and Second keyword \and Another keyword.}
+\end{abstract}
+
+\lstset{identifierstyle={\itshape}, keywords={if,let,be,in,then,so,that,end,forget,remember,else}, keywordstyle={\fontseries{b}\selectfont}, mathescape=true, basicstyle={\ttfamily}, tabsize=2, gobble=8, frame=single}
+
+\include{definitions}
+
+\maketitle
+
+\section{Introduction}
+
+    There are many examples of pairs of functions that have a tight relationship, where one can be seen as the 'kind of inverse' of the other.
+    \begin{itemize}
+    \item reading/writing data to/from a file (de-/serialization),
+    \item parsing/unparsing,
+    \item conversion between different data formats,
+    \item model transformations,
+    \item do/undo in an editor,
+    \item buying/selling,
+    \item photographing/printing,
+    \item recording/playing media,
+    \item machine translation.
+    \end{itemize}
+    
+    Like monads a few decades ago, this is a software pattern that seems to permeate software engineering but has not much support from programming languages.
+    Usually, the two functions are written separately.
+    But, anyone who has hand-written a top-down parser and corresponding pretty-printer, for example, has noticed how similar the structure of both functions is. 
+    
+    Let's look at a relatively simple example. The following functions are parsing and pretty-printing numbers. For simplicity, the string to parse already consists of individual digits.
+    \begin{lstlisting}
+        let parse = $\lambda$ 
+            cons(0, nil). 0
+          | cons(d, r).   parse(r) * 10 + d
+          in
+        let unparse = $\lambda$
+            0. cons(0, nil)
+          | n. let d = mod(n, 10) in
+               let r = unparse((n - d) / 10) in
+               cons(d, r)
+    \end{lstlisting}
+    The correspondences between \lstinline|parse(r) * 10 + d| and \lstinline|unparse((n - d) / 10)| are striking.
+    
+    The relationship between the two functions may not be that of perfect reversibility.
+    A parser typically discards white space.
+    The example discards leading zeros.
+    The reverse function, the pretty-printer, then cannot recreate the original white space.
+    But in this case, the behavior is actually intended.
+    For this reason we make a distinction between the words \emph{reversible} and \emph{invertible}.
+
+    
+    In the next section, TODO.
+    In section 3, we will then introduce a (mostly untyped) functional programming language that has a unified syntax and semantics for both irreversible and reversible programs.
+    This means that irreversible programs are written in the style of the normal lambda calculus.
+    The language is extended with reversible functions.
+    Moreover, we will see that the semantics of the reversible sub\hyp{}language is such that, when a reversible program is interpreted as an irreversible one, it has (almost) the same semantics.
+    In other words, reversible programs should be a subset of irreversible ones.
+    Section 4 is dedicated to formalizing the language. We present a type system that defines which programs are valid and we prove its soundness. This shows that well-typed programs adhere to our janus classes.
+
+    It follows that a reversible morphism $f\colon A \to B$ (in $\D$) has two associated irreversible functions $\f{f}\colon A \to B$ and $\b{f} = \f{(\rev{f})}\colon B \to A$ (in $\C$). This observation leads us our first category of reversible functions.
+
+    The idea of a reversible functional language is that, instead of programming by composing functions, a program is built by composing reversible functions. This lends itself nicely to an interpretation in category theoretical terms. Reversible programs will be modeled by morphisms in a dagger category $\D$.
+    
+    \begin{definition}
+        A \emph{dagger category} is a category equipped with a functor $\rev{-}\colon \op{\D} \to \D$ which is the identity on objects, i.e., it assigns to every morphism $f\colon A \to B$ a morphism $\rev{f}\colon B \to A$ 'going the opposite direction'. The functor must adhere to the laws $\rev{f}\rev{{}} = f$ and $\rev{(\comp{f}{g})} = \comp{\rev{g}}{\rev{f}}$.
+        
+        A \emph{dagger functor} is a functor $F\colon \C \to \D$ between dagger categories $\C$ and $\D$ that preserves the dagger. i.e., $F\,(\rev[\C]{f}) = \rev[\D]{(F\,f)}$.
+    \end{definition}
+    
+    Irreversible functions are understood as the morphisms of a category $\C$. We will choose $\C$ to be a Kleisli-category over some cartesian closed category in the spirit of Moggi's computational lambda calculus [CITE]. So $\C$ is the semantical framework in which we can write functional programs and which we are already familiar with. In order to make use of those reversible functions, we have to turn them into irreversible functions. This shall be accomplished with a projection functor $\f{-}\colon \D \to \C$. For the seamless integration of the reversible sublanguage into the irreversible language it is necessary to require $\f{-}$ to be the identity on objects, and so $\C$ and $\D$ have to have the same objects.
+    
+    It follows that a reversible morphism $f\colon A \to B$ (in $\D$) has two associated irreversible functions $\f{f}\colon A \to B$ and $\b{f} = \f{(\rev{f})}\colon B \to A$ (in $\C$). This observation leads us our first category of reversible functions.
+    
+    \begin{definition}
+        For a category $\C$ we call a pair of $\C$-morphisms $(f, g)\colon (A \to B) \times (B \to A)$ a \emph{Janus}. 
+        
+        The category $\JC$ is called the \emph{Janus category} of $\C$. It has 
+        \begin{itemize}
+            \item the same objects as $\C$,
+            \item as morphisms all januses of $\C$ where we treat $(f, g)$ as going the same direction as $f$, i.e., $(f, g)\colon A \to B$ in $\JC$ if $f\colon A \to B$ in $\C$,
+            \item $\rev{(f, g)} = (g, f)$ as the dagger, and
+            \item $\f{(f, g)} = f$ as the projection functor from $\JC$ to $\C$.
+        \end{itemize}
+    \end{definition}
+    \begin{proposition}
+        $\JC$ is a dagger category.
+        
+        If $\C$ is monoidal or symmetric monoidal then so is $\JC$.
+    \end{proposition}
+    
+    The janus category will serve as our running example model for reversible functions as it can be seen as the most generic category of reversible functions for a given category of irreversible functions as shown by the following lemma.
+    
+    \begin{definition}
+        Let $\JCC$ be the category which has 
+        \begin{itemize}
+            \item as objects all the pairs $(\D, \f[\D]{-}\colon \D \to \C)$ of dagger categories and projection functors, and
+            \item as morphisms all projection dagger functors $F\colon \D \to \D'$, i.e., functors such that $\comp{F}{\f[\D']{-}} = \f[\D]{-}$ and $\comp{F}{\rev[\D']{-}} = \comp{\rev[\D]{-}}{F}$.
+        \end{itemize}
+    \end{definition}
+    \begin{proposition}
+        $\JCC$ is indeed a category.
+    \end{proposition}
+    \begin{lemma}
+        $\JC$ is a terminal object of $\JCC$.
+    \end{lemma}
+    \begin{proof}
+        The unique morphism $F\colon (\D, \f[\D]{-}) \to (\JC, \f[\JC]{-})$ is dictated by the definition of $\JC$ and the requirement that the morphisms must commute with daggers and projections.
+        \begin{align*}
+            \comp{F}{\pi_1} &= \comp{F}{\f[\JC]{-}} = \f[\D]{-} \\
+            \comp{F}{\pi_2} &= \comp{F}{\comp{\rev[\JC]{-}}{\f[\JC]{-}}} = \comp{\rev[\D]{-}}{\comp{F}{\f[\JC]{-}}} = \comp{\rev[\D]{-}}{\f[\D]{-}}
+        \end{align*}
+    \end{proof}
+    
+    Another example for a reversible setting is the core of $\C$ which is (isomorphic to) a subcategory of $\JC$ and inherits the dagger category structure from it.
+    
+    \begin{definition}
+        The category $\coreC$ has the same objects as $\C$ and as morphisms all the isomorphisms of $\C$, i.e., the morphisms $f\colon A \to B$ for which there exists a morphism $g\colon B \to A$ such that $\comp{f}{g} = \id_A$ and $\comp{g}{f} = \id_B$.
+    \end{definition}
+    
+\subsection{Categorical Semantics of an Irreversible Language}
+
+    \begin{figure}
+        \centering
+        \begin{align*}
+            E ::= & ~C \mid V \mid \eunit \mid \epair{E}{E} \mid \\
+                  & ~\eapp{E}{E} \mid \elam{V}{E} \mid \elet{P}{E}{E} \\
+            V ::= & ~V \mid \eunit \mid \epair{P}{P} \\
+            V =   & ~\text{set of variable names} \\
+            C =   & ~\text{set of constant symbols}
+        \end{align*}
+        \caption{Syntax of a basic functional language}
+        \label{fig:syntax1}
+    \end{figure}
+    
+    \begin{figure}
+        \centering
+        {\def\arraystretch{1.5}
+        \begin{tabular}{l|l c l}
+            \hline
+            Name & Typing (Expressions) & & Semantics ($\semL{-}$)
+            \\ \hline\hline
+              \textsc{Const} 
+            & $\typerulel{\Gamma}{c_i}{\tau_{c_i}}$
+            & = & $\comp{\terminal_{\sem{\Gamma}}}{\sem{c_i}} \qquad \text{where $\sem{c_i}\colon I \to \sem{\tau_{c_i}}$}$
+            \\ \hline
+              \textsc{Var}
+            & $\typerulel{v_1\colon \tau_1, \dots, v_n\colon \tau_n}{v_i}{\tau_i}$
+            & = & $\tensor{\terminal_{\sem{\tpair{\tau_1}{\tpair{\dots}{\tau_{i-1}}}}}}{\tensor{\id_{\sem{\tau_i}}}{\terminal_{\sem{\tpair{\tau_{i+1}}{\tpair{\dots}{\tau_n}}}}}}$
+            \\ \hline
+              \textsc{Unit} 
+            & $\typerulel{\Gamma}{\eunit}{\tunit}$
+            & = & $\terminal_{\sem{\Gamma}}$
+            \\ \hline
+              \multirow{3}{*}{\textsc{Tup}}
+            & $\typerulel{\Gamma}{e_1}{\tau_1}$
+            & = & $g_1$ \\
+            & $\typerulel{\Gamma}{e_2}{\tau_2}$
+            & = & $g_2$ \\ \cline{2-2}
+            & $\typerulel{\Gamma}{\epair{e_1}{e_2}}{\tpair{\tau_1}{\tau_2}}$
+            & = & $\comp{\dup}{(\tensor{g_1}{g_2})}$
+            \\ \hline
+              \multirow{3}{*}{$\textsc{App}_{\fun}$}
+            & $\typerulel{\Gamma}{e_1}{\tfun{\tau_1}{\tau_2}}$
+            & = & $g_1$ \\
+            & $\typerulel{\Gamma}{e_2}{\tau_1}$
+            & = & $g_2$ \\ \cline{2-2}
+            & $\typerulel{\Gamma}{\eapp{e_1}{e_2}}{\tau_2}$
+            & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_2}{\id_{\sem{\Gamma}}})}}{\uncurry\,g_1}$
+            \\ \hline
+              \multirow{3}{*}{$\textsc{App}_{\js}$}
+            & $\typerulel{\Gamma}{e_1}{\tjs{\tau_1}{\tau_2}}$
+            & = & $g_1$ \\
+            & $\typerulel{\Gamma}{e_2}{\tau_1}$
+            & = & $g_2$ \\ \cline{2-2}
+            & $\typerulel{\Gamma}{\eapp{e_1}{e_2}}{\tau_2}$
+            & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_2}{\id_{\sem{\Gamma}}})}}{\uncurry\,(\f{g_1})}$
+            \\ \hline
+              \multirow{2}{*}{\textsc{Lam}}
+            & $\typerulel{\Gamma, v\colon \tau_1}{e}{\tau_2}$
+            & = & $g$ \\ \cline{2-2}
+            & $\typerulel{\Gamma}{\elam{v}{e}}{\tfun{\tau_1}{\tau_2}}$
+            & = & $\curry\,g$
+            \\ \hline
+              \multirow{3}{*}{\textsc{Let}}
+            & $\typerulel{\Gamma}{e_1}{\tau_1}$
+            & = & $g_1$ \\
+            & $\typerulelp{\Delta}{p_2}{\tau_1}$
+            & = & $g_2$ \\
+            & $\typerulel{\Gamma,\Delta}{e_3}{\tau_3}$
+            & = & $g_3$ \\ \cline{2-2}
+            & $\typerulel{\Gamma}{\elet{p_2}{e_1}{e_3}}{\tau_3}$
+            & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{\id_{\sem{\Gamma}}}{(\comp{g_1}{g_2})})}}{g_3}$
+            \\ \hline \hline
+            Name & Typing (Patterns) & & Semantics ($\semLP{-}$) \\ \hline
+              \textsc{VarP}
+            & $\typerulelp{v\colon \tau}{v}{\tau}$
+            & = & $\id_{\sem{\tau}}$ 
+            \\ \hline
+              \textsc{UnitP}
+            & $\typerulelp{\emptyset}{\eunit}{\tunit}$
+            & = & $\id_{\sem{\tunit}}$ 
+            \\ \hline
+              \multirow{3}{*}{\textsc{TupP}}
+            & $\typerulelp{\Delta_1}{p_1}{\tau_1}$
+            & = & $g_1$ \\
+            & $\typerulelp{\Delta_2}{p_2}{\tau_2}$
+            & = & $g_2$ \\ \cline{2-2}
+            & $\typerulelp{\Delta_1, \Delta_2}{\epair{p_1}{p_2}}{\tpair{\tau_1}{\tau_2}}$
+            & = & $\tensor{g_1}{g_2}$ 
+            \\ \hline
+              \multirow{3}{*}{\textsc{SumLP}}
+            & $\typerulelp{\Delta}{p}{\tau_1}$
+            & = & $g_1$ \\
+            & $\typerulelp{\Delta}{\einjl{p}}{\tau_1 + \tau_2}$
+            & = & $\tensor{g_1}{g_2}$ 
+            \\ \hline
+              \multirow{3}{*}{\textsc{SumRP}}
+            & $\typerulelp{\Delta}{p}{\tau_2}$
+            & = & $g_2$ \\
+            & $\typerulelp{\Delta}{\einjr{p}}{\tau_1 + \tau_2}$
+            & = & $\tensor{g_1}{g_2}$ 
+            \\ \hline
+        \end{tabular}}
+        \caption{Basic functional typing rules and semantics}
+        \label{fig:semantics1}
+    \end{figure}
+    
+    Lets take a quick recap on how the semantics of a functional programming language are captured in category $\C$. \Cref{fig:syntax1} shows the syntax of a simple functional language. $\sem{-}$ maps the types of the language to corresponding objects of the category. The typing and categorical semantics in \Cref{fig:semantics1} assign to every well-typing $\typerulel{\Gamma}{e}{\tau}$ a morphism $\semL{e}\colon \sem{\Gamma} \to \sem{\tau}$ of the category.
+    
+    A context with multiple variables is represented as a tensor product, written $\sem{\tpair{A}{B}} = \tensor{A}{B}$, of the types of the variables. Since the order of the variables shouldn't matter we assume isomorphisms between the types $\tensor{(\tensor{A}{B})}{C} \cong \tensor{A}{(\tensor{B}{C})}$ and $\tensor{A}{B} \cong \tensor{B}{A}$. The empty context is represented by the type $\sem{\tunit} = I$ that is the identity of the tensor product, i.e., there are isomorphisms $\tensor{A}{I} \cong A \cong \tensor{I}{A}$. Additionally these isomorphisms should be subject to certain coherence laws that are not interesting at this point. So far what we have described is a \emph{symmetric monoidal category}. We are going to assume these isomorphisms throughout this paper so in order to simplify the presentation we omit them.
+    
+    The sublanguage of patterns is very simple. It has only three rules and categorical the semantics are exactly the identities of the type of the pattern. Note that the typing judgment $\typerulelp{\Delta}{p}{A}$ is linear, i.e., every variable in $\Delta$ appears exactly once in the pattern $p$.
+    
+    A few symbols appear in the semantics that we haven't explained yet. These are categorical concepts that go beyond a symmetric monoidal category and we should spend some more time on why we need them here. Note that the presentation in \Cref{fig:semantics1} is equivalent to what one finds in textbooks like [CITE] but it is not the same. We chose this formulation to specifically highlight the differences between irreversible and reversible functional languages.
+    
+    The typing rules allow expressions not to use all the variables in the context. So we need a way to throw away the ones we don't need. This is the purpose of $\terminal_A\colon A \to I$. It allows us to throw away information. It is obvious how this is a problem for a reversible language. The typing rules also allow us to use a variable more than once. So $\dup_A\colon A \to \tensor{A}{A}$ is needed to duplicate information. We will later define a multiple versions of this function. A symmetric monoidal category with $\terminal_A$ and $\dup_A$ (together with certain coherence laws) is called a \emph{cartesian category}.
+    
+    We also want to have first class functions. The type of functions between types $A$ and $B$ is denoted $\sem{\tfun{A}{B}} = \homC{\sem{A}}{\sem{B}}$. In order to create terms of function types, we need to be able to turn a term that evaluates a context to a value into a term that evaluates a smaller context into a function that will evaluate into the same value when applied to the rest of the context. This is called currying and written as $\curry$. It forms the well-known isomorphism $\homC{\tensor{A}{C}}{B} \cong \homC{C}{\homC{A}{B}}$. The inverse of this isomorphism is written $\uncurry$ and required to apply a function. Cartesian categories with this structure are called \emph{cartesian closed categories}.
+    
+\begin{figure}
+        \begin{align*}
+            \sugar{\elam{p}{e}} &= \elam{v}{\sugar{\elet{p}{v}{e}}} \\
+            \sugar{\elet{\epair{p}{p_2}}{e_1}{e_2}} &= \sugar{\elet{\epair{v}{p_2}}{e_1}{\elet{p_1}{v}{e_2}}} \\
+            \sugar{\elet{\epair{v_1}{p}}{e_1}{e_2}} &= \elet{\epair{v_1}{v}}{e_1}{\elet{p}{v}{\sugar{e_2}}} \\
+            \sugar{e} &= e \quad \text{otherwise} 
+        \end{align*}
+        \hfill with $v_1 \in V$, $e, e_1, e_2, p_2 \in E$, $p \in E \backslash V$ and $v$ a fresh variable
+        \caption{Syntactic sugar}
+        \label{fig:syntactic-sugar1}
+    \end{figure}
+    
+    Finally we will employ some syntactic sugar for patterns in lambda- and let-expressions as given in \Cref{fig:syntactic-sugar1}. First, any lambda-expression with an argument pattern other than a simple variable will be translated to a lambda with a fresh variable argument and a let-expression. Then complex tuple patterns will be resolved to a series of let-expressions with simple pairs-of-variable-patterns. This allows us for example to write $\elam{\epair{x}{\eunit}}{x}$ instead of $\elam{x_1}{\elet{\epair{x}{x_3}}{x_1}}{\elet{\eunit}{x_3}{x}}$.
+    
+    \begin{figure}
+        \begin{align*}
+            \comp{-}{-} & \colon \tensor{\homC{B}{C}}{\homC{A}{B}} \to \homC{A}{C} \\
+                        & = \semL{\evar{f}, \evar{g} \vdash \elam{\evar{a}}{\eapp{\evar{f}}{(\eapp{\evar{g}}{\evar{a}})}}} \\
+            \tensor{-}{-} & \colon \tensor{\homC{A}{C}}{\homC{B}{D}} \to \homC{\tensor{A}{B}}{\tensor{C}{D}} \\
+                          & = \semL{\evar{f}, \evar{g} \vdash \elam{\epair{\evar{a}}{\evar{b}}}{\epair{\eapp{\evar{f}}{\evar{a}}}{\eapp{\evar{g}}{\evar{b}}}}} \\
+            \Delta_A & \colon I \to \homC{A}{\tensor{A}{A}} \\
+                     & = \semL{\emptyset \vdash \elam{\evar{a}}{\epair{\evar{a}}{\evar{a}}}} \\
+            \terminal_A & \colon I \to \homC{A}{I} \\
+                        & = \semL{\emptyset \vdash \elam{\evar{a}}{\eunit}} \\
+            \curry_{A,B,C} & \colon \homC{\tensor{C}{A}}{B} \to \homC{C}{\homC{A}{B}} \\
+                           & = \semL{\evar{f} \vdash \elam{\evar{c}}{\elam{\evar{a}}{\eapp{\evar{f}}{\epair{\evar{c}}{\evar{a}}}}}} \\
+            \uncurry_{A,B,C} & \colon \homC{C}{\homC{A}{B}} \to \homC{\tensor{C}{A}}{B} \\
+                             & = \semL{\evar{f} \vdash \elam{\epair{\evar{c}}{\evar{a}}}{\eapp{\eapp{\evar{f}}{\evar{c}}}{\evar{a}}}}
+        \end{align*}
+
+        \caption{Self-enrichment of $\C$}
+        \label{fig:enrichment1}
+    \end{figure}
+    
+    Cartesian closed categories have the property that they can be represented within themselves. \Cref{fig:enrichment1} shows the morphisms that exist in $\C$ that recapture the structure of the cartesian closed category. If we add these morphisms as constant symbols to the language (and add syntactic sugar for infix operators) then \Cref{fig:semantics1} can be seen as an interpreter for the functional language written in itself. This situation is called enrichment. In general a category $\D$ is enriched over a (usually different) monoidal category $\C$ when $\C$ has a family of objects to represent the $\D$-morphisms between two $\D$-types and all the relevant $\D$-structure is present in the form of $\C$-morphisms similar to those in \Cref{fig:enrichment1}. For example the enriched associativity law for morphism composition is \begin{align*}
+    \comp{(\tensor{(\comp{-}{-})}{\id})}{(\comp{-}{-})} &= 
+        \comp{(\tensor{\id}{(\comp{-}{-})})}{(\comp{-}{-})} \\
+    \intertext{or more directly and more intuitively}
+    \semL{\evar{f}, \evar{g}, \evar{h} \vdash \comp{(\comp{\evar{f}}{\evar{g}})}{\evar{h}}} &= 
+        \semL{\evar{f}, \evar{g}, \evar{h} \vdash \comp{\evar{f}}{(\comp{\evar{g}}{\evar{h}})}} \;.
+    \end{align*}
+    In general for all assumptions $a = b$ in the metalanguage we have a law for the enrichment that can be stated as $\semL{a} = \semL{b}$ in the object language.
+    
+    As the lambda-calculus is much more succinct and more familiar to many readers, we will often use $\semL{-}$ to give $\C$-morphisms. We generally leave out all the type information if it is obvious or not important.
+    
+    All the rules are standard except \textsc{Proj}. This rule is an extension to the lambda calculus and only necessary to simplify the coherence theorems later. With this language we can define and use reversible functions in a point-free manner already. \textsc{Proj} allows us to omit $\f{-}$ when a reversible function is used where an irreversible function is expected. Function reverse can achieved by the constant symbol $\rev{-}_{\tau_1, \tau_2}\colon \homD{\tau_1}{\tau_2} \to \homD{\tau_2}{\tau_1}$.
+    
+    Constant symbols also allow us to extend the language without affecting the language consistency. For example let $\C$ have and object $2$ such that there is isomorphisms $\tensor{A}{A} \cong \homC{2}{A}$. Let's call the type $\sem{\tbool} = 2$ and let $\select_\tau\colon \tfun{\tpair{\tau}{\tau}}{\tfun{\tbool}{\tau}}$ be the constant symbol for that isomorphism. This allows us to use syntactic sugar for the familiar if-then-else construct. \begin{align*}
+        \sugar{\eifthenelse{i}{t}{e}} &= \eapp{\eapp{\eapp{\select}{\epair{\elam{\eunit}{t}}{\elam{\eunit}{e}}}}{i}}{\eunit}
+    \end{align*}
+
+\subsection{Thoughts on Reversible Semantics}
+    
+    Dagger categories are a natural framework for reversible semantics. They come with a strong consequence though: For any commuting diagram in a dagger category it's dual diagram also commutes. For example if the dagger category $\D$ has products $A \times B$ with 
+    \begin{itemize}
+        \item the projection morphisms $\pi_1\colon A \times B \to A$ and $\pi_2\colon A \times B \to B$, and
+        \item the unique morphism $\langle f, g \rangle\colon C \to A \times B$
+    \end{itemize}
+    then $A \times B$ is necessarily also a coproduct with
+    \begin{itemize}
+        \item the injection morphisms $\rev{\pi_1}\colon A \to A \times B$ and $\rev{\pi_2}\colon B \to A \times B$, and
+        \item the unique morphism $\rev{\langle \rev{f}, \rev{g} \rangle}\colon C \to A \times B$.
+    \end{itemize}
+    
+    Therefore the structure that we will require of the category for reversible semantics has to be self-dual. The non-self-dual structure used in \Cref{fig:semantics1} is that of the cartesian product and the cartesian closedness which we extracted into the symbols $\terminal$, $\dup$, $\curry$ and $\uncurry$. 
+    
+    \begin{proposition}
+        A symmetric monoidal category is cartesian if and only if there are natural transformations $\Delta_A\colon A \to \tensor{A}{A}$ and $\terminal_{A}\colon A \to I$ such that
+        \begin{gather*}
+            A \xrightarrow{\dup_A} \tensor{A}{A} \xrightarrow{\tensor{\id_A}{\terminal_A}} \tensor{A}{I} \xrightarrow{\cong} A = \id_A \\
+            A \xrightarrow{\dup_A} \tensor{A}{A} \xrightarrow{\tensor{\terminal_A}{\id_A}} \tensor{I}{A} \xrightarrow{\cong} A = \id_A
+        \end{gather*}
+    \end{proposition}
+    
+    \begin{proposition}
+        A cartesian category is cartesian closed if and only if there is a natural isomorphism $\curry_{A, B, C}\colon \homC{\tensor{A}{C}}{B} \to \homC{C}{\homC{A}{B}}$.
+    \end{proposition}
+    
+    So a symmetric monoidal category is as close as we can get to a cartesian closed category whilst keeping all the required structure self-dual. But we can do better by requiring that our dagger category $\D$ is enriched over our cartesian closed category $\C$. We shall denote the external hom-object of $\D$ in $\C$ by $\homD{A}{B}$.
+    
+    Let's take a look at the evaluation morphism \[
+    \eval[\C]_{A,B}\colon \tensor{A}{\homC{A}{B}} \to B = \uncurry[\C]_{A,B,\homC{A}{B}}\,\id_{\homC{A}{B}}\;.
+    \]
+    We have to find a a reversible version such that \begin{align*}
+        \f{\eval[\D]_{A, B}}&\colon \tensor{A}{\homD{A}{B}} \to B = \eval[\C]_{A,B}\\
+        \b{\eval[\D]_{A, B}}&\colon B \to \tensor{A}{\homD{A}{B}} = {?}
+    \end{align*} but we would be hard pressed to find a non-trivial, cartesian closed category with a morphism for $\b{\eval[\D]_{A, B}}$. The key idea is that $\eval$'s type could be made self-dual if it returned the function that was applied in addition to the value, i.e., $\jeval_{A,B}\colon \tensor{A}{\homD{A}{B}} \to \tensor{B}{\homD{A}{B}}$. In the Janus category we can easily define a suitable definition. \begin{align*}
+        \jeval_{A,B} &= \janus{\semL{\evar{a}, \evar{f} \vdash (\eapp{\f{\evar{f}}}{\evar{a}}, \evar{f})}}
+                              {\semL{\evar{b}, \evar{f} \vdash (\eapp{\b{\evar{f}}}{\evar{b}}, \evar{f})}}
+    \end{align*} This idea of retaining information that is used to reversibly transform other pieces of information is embodied in the following function.
+    \begin{align*}
+        \juncurry[\JC] &\colon \homC{C}{\homD{A}{B}} \to \homD{\tensor{A}{C}}{\tensor{B}{C}} \\
+        \juncurry[\JC]\,f &= \janus{\semL{\evar{a}, \evar{c} \vdash \epair{\eapp{\f{(\eapp{\evar{f}}{\evar{c}})}}{\evar{a}}}{\evar{c}}}}
+                                   {\semL{\evar{b}, \evar{c} \vdash \epair{\eapp{\b{(\eapp{\evar{f}}{\evar{c}})}}{\evar{b}}}{\evar{c}}}}
+    \end{align*}
+    So $\juncurry$ is a way to convert $\C$-morphisms that construct $\D$-morphisms into a proper $\D$-morphism. It allows us to create reversible functions in an irreversible manner. This is where most of the expressiveness of Emordnilap comes from. It looks similar to uncurrying and just as $\uncurry\,\id = \eval$ we have $\juncurry\,\id = \jeval$. It is weaker though, because $\juncurry$ is not necessarily an isomorphism.
+    
+    \begin{definition}
+        A \emph{$\juncurry$-structure} is given by the tuple $(\C, \D, \f{-}, \juncurry[\D])$ where
+        \begin{itemize}
+            \item $\C$ is a cartesian closed category with internal hom-object $\homC{A}{B}$,
+            \item $\D$ is a symmetric monoidal category $\D$ with the same objects as $\C$ and enriched over $\C$ with external hom-object $\homD{A}{B}$,
+            \item $\f{-}\colon \D \to \C$ is an identity on objects $\C$-enriched, symmetric monoidal functor, and 
+            \item for every $\C$-morphism $f\colon C \to \homD{A}{B}$ there is a $\D$-morphism $\juncurry[\D]\,f\colon \tensor{A}{C} \to \tensor{B}{C}$ such that $\f{(\juncurry[\D]\,f)} = \juncurry[\C]\,(\comp{f}{\f{-}})$ where $\juncurry[\C]\,f = \semL{\evar{a}, \evar{c}\vdash \epair{\eapp{\eapp{f}{\evar{c}}}{\evar{a}}}{\evar{c}}}$.
+        \end{itemize}
+        
+        A \emph{$\dagger\juncurry$-structure} is a $\juncurry$-structure $(\C, \D, \f{-}, \juncurry[\D])$ such that
+        \begin{itemize}
+            \item $\D$ is a dagger symmetric monoidal category, and
+            \item $\f{-}$ is a dagger functor.
+        \end{itemize}
+    \end{definition}
+    
+    \begin{example}
+        $(\C, \JC, \pi_1, \juncurry[\JC])$ is a $\dagger\juncurry$-structure.
+    \end{example}
+    \begin{example}\label{ex:semi-inverse}
+        Let $\D$ be the wide subcategory of $\JC$ where for all Januses $f$ we have $\comp{\b{f}}{\f{f}} = \id$. We can retain $\juncurry$ from $\JC$, because for any $g\colon C \to \homD{A}{B}$ in $\C$ we have
+        \begin{align*}
+          & \comp{\b{(\juncurry[\JC]\,g)}}{\f{(\juncurry[\JC]\,g)}} \\
+        = & \comp{\semL{\evar{a}, \evar{c} \vdash \epair{\eapp{\b{(\eapp{g}{\evar{c}})}}{\evar{a}}}{\evar{c}}}}{\semL{\evar{b}, \evar{c} \vdash \epair{\eapp{\f{(\eapp{g}{\evar{c}})}}{\evar{b}}}{\evar{c}}}} \\
+        = & \semL{\evar{a}, \evar{c} \vdash \epair{\eapp{\f{(\eapp{g}{\evar{c}})}}{(\eapp{\b{(\eapp{g}{\evar{c}})}}{\evar{a}})}}{\evar{c}}} \\
+        = & \semL{\evar{a}, \evar{c} \vdash \epair{\evar{a}}{\evar{c}}} \\
+        = & \id
+        \end{align*}
+        
+        Unfortunately $\D$ is not self-dual, but $(\C, \D, \f{-}, \juncurry[\D])$ is still a $\juncurry$-structure. Parser/pretty-printer pairs usually have this property.
+    \end{example}
+    \begin{example} \label{ex:coreC}
+        $\coreC$ has a canonical $\dagger\juncurry$-structure with $\f{-}\colon \coreC \to \C$ the injection functor and $\juncurry[\coreC]\,f = \juncurry[\C] f$. Note that if $\semL{\evar{a} \vdash \eapp{\eapp{f}{c}}{\evar{a}}} \colon A \to B$ is an isomorphism for all $c$ then $\semL{\evar{a}, \evar{c} \vdash \epair{\eapp{\eapp{f}{\evar{c}}}{\evar{a}}}{\evar{c}}} \colon \tensor{A}{C} \to \tensor{B}{C}$ is an isomorphism too. This can be shown with an analogous argument as for \Cref{ex:semi-inverse} but for both $\coreC$ and $\op{\coreC}$.
+    \end{example}
+    
+\subsection{The Categorical Semantics of Emordnilap}
+
+    \begin{figure}
+    \centering
+    {\def\arraystretch{1.5}
+    \begin{tabular}{l|l c l}
+          Name & Typing & & Semantics ($\semD{-}$) \\
+          \hline\hline
+          \textsc{Const}
+        & $\typeruled{\Gamma}{\emptyset}{c_i}{\fun}{C_i}$
+        & = & $\semL{\gamma \vdash \elam{\eunit}{c_i}}$ 
+        \\ \hline
+          \textsc{Var}
+        & $\typeruled{v_1\colon A_1, \dots, v_n\colon A_n}{\emptyset}{v_i}{\fun}{A_i}$
+        & = & $\semL{v_1\colon A_1, \dots, v_n\colon A_n \vdash \elam{\eunit}{v_i}}$ 
+        \\ \hline
+          \textsc{RVar}
+        & $\typeruled{\Gamma}{v\colon A}{v}{\js}{A}$
+        & = & $\semL{\gamma \vdash \id_{\sem{A}}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{LetV}}
+        & $\typeruled{\Gamma, \Delta_2}{\Delta_1}{e_1}{j}{A}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{v\colon A, \Delta_2}{e_2}{j}{B}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_2}{\elet{v}{e_1}{e_2}}{j}{B}$
+        & = & $\semL{\gamma \vdash \comp{(\juncurry\,\elam{\delta_2}{\eapp{g_1}{\epair{\gamma}{\delta_2}}})}{\eapp{g_2}{\gamma}}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{App}}
+        & $\typeruled{\Gamma}{\emptyset}{e_1}{\fun}{\homJ{A}{j}{B}}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\Delta}{e_2}{j}{A}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta}{\eapp{e_1}{e_2}}{j}{B}$
+        & = & $\semL{\gamma \vdash \comp{\eapp{g_2}{\gamma}}{\eapp{\eapp{g_1}{\gamma}}{\eunit}}}$ 
+        \\ \hline
+          \multirow{2}{*}{\textsc{Lam}}
+        & $\typeruled{\Gamma}{v\colon A}{e}{j}{B}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\emptyset}{\elam{v}{e}}{\fun}{\homJ{A}{j}{B}}$
+        & = & $\semL{\gamma \vdash \elam{\eunit}{\eapp{g}{\gamma}}}$ 
+        \\ \hline
+          \textsc{Unit}
+        & $\typeruled{\Gamma}{\emptyset}{\eunit}{j}{\tunit}$
+        & = & $\semL{\gamma \vdash \id_{\sem{\tunit}}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{LetU}}
+        & $\typeruled{\Gamma, \Delta_2}{\Delta_1}{e_1}{j}{\tunit}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\Delta_2}{e_2}{j}{B}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_2}{\elet{\eunit}{e_1}{e_2}}{j}{B}$
+        & = & $\semL{\gamma \vdash \comp{(\juncurry\,\elam{\delta_2}{\eapp{g_1}{\epair{\gamma}{\delta_2}}})}{\eapp{g_2}{\gamma}}}$  
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}}
+        & $\typeruled{\Gamma}{\Delta_1}{e_1}{j}{A_1}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{\Delta_2}{e_2}{j}{A_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta_1, \Delta_2}{\epair{e_1}{e_2}}{j}{\tpair{A_1}{A_2}}$
+        & = & $\semL{\gamma \vdash \tensor{\eapp{g_1}{\gamma}}{\eapp{g_2}{\gamma}}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{LetT}}
+        & $\typeruled{\Gamma, \Delta_2}{\Delta_1}{e_1}{j}{\tpair{A_1}{A_2}}$ 
+        & = & $g_1$ \\ 
+        & $\typeruled{\Gamma}{v_1\colon A_1, v_2\colon A_2, \Delta_1}{e_2}{j}{B}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\stackunder{{\Gamma}; {\Delta_1, \Delta_2} \vdash}{\qquad{\elet{\epair{v_1}{v_2}}{e_1}{e_2}}\colon{j}\,{B}}$
+        & = & $\semL{\gamma \vdash \comp{(\juncurry\,\elam{\delta_2}{\eapp{g_1}{\epair{\gamma}{\delta_2}}})}{\eapp{g_2}{\gamma}}}$  
+        \\ \hline
+          \multirow{2}{*}{\textsc{Proj}}
+        & $\typeruled{\Gamma}{\emptyset}{e}{\fun}{\tjs{A}{B}}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\emptyset}{e}{\fun}{\tfun{A}{B}}$
+        & = & $\semL{\gamma \vdash \elam{\eunit}{\f{(\eapp{g}{\gamma})}}}$ 
+        \\ \hline
+          \multirow{2}{*}{\textsc{Dup}}
+        & $\typeruled{\Gamma}{\Delta, x\colon A, x\colon A}{e}{\js}{B}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta, x\colon A}{e}{\fun}{B}$
+        & = & $\semL{\gamma \vdash \comp{(\tensor{\id_{\sem{\Delta}}}{\dup_A})}{\eapp{g}{\gamma}}}$  
+        \\ \hline
+          \multirow{2}{*}{\textsc{Term}}
+        & $\typeruled{\Gamma}{\Delta}{e}{\js}{B}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typeruled{\Gamma}{\Delta, x\colon A}{e}{\fun}{B}$
+        & = & $\semL{\gamma \vdash \comp{(\tensor{\id_{\sem{\Delta}}}{\terminal_A})}{\eapp{g}{\gamma}}}$  
+        \\ \hline
+    \end{tabular}}
+    \caption{Categorical semantics for Emordnilap}
+    \label{fig:semantics2}
+    \end{figure}
+    
+    The formal semantics of Emordnilap are given in \Cref{fig:semantics2}. The typing judgement $\typeruled{\Gamma}{\Delta}{e}{j}{A}$ splits the context into a non-linear part $\Gamma$ and a linear part $\Delta$. Additionally we distinguish between reversible and irreversible expression with $j \in \{ \fun, \js \}$. Each well-typed expressions is a assigned a morphism $\semD{e}\colon \sem{\Gamma} \to \homJ{\sem{\Delta}}{j}{\sem{A}}$ in $\C$. This uses the fact that both $\C$ and $\D$ are enriched over $\C$ and allows us to construct reversible expression in a non-reversible manner. 
+    
+    \begin{lemma} \label{lem:js-implies-fun-typing} The following holds.
+        \begin{lemmalist}
+            \item $\typeruled{\Gamma}{\Delta}{e}{\js}{A}$ implies $\typeruled{\Gamma, \Delta}{\emptyset}{e}{\fun}{A}$ \label{lem:js-implies-fun-typing1}
+            \item $\typeruled{\Gamma}{\emptyset}{e}{\fun}{\homD{A}{B}}$ implies $\typeruled{\Gamma}{\emptyset}{e}{\fun}{\homC{A}{B}}$ \label{lem:js-implies-fun-typing2}
+        \end{lemmalist}
+    \end{lemma}
+    The proof requires weakening lemmas.
+    
+    \begin{lemma} \label{lem:weakening1}
+        $\typerulel{\Gamma}{e}{A}$ implies 
+        \begin{lemmalist}
+        \item $\typerulel{\Gamma, \Gamma'}{e}{A}$ and \label{lem:weakening1-typing}
+        \item $\semL{\typerulel{\Gamma,\Gamma'}{e}{A}} = \comp{\pi_1}{\semL{\typerulel{\Gamma}{e}{A}}}$. \label{lem:weakening1-semantics}
+        \end{lemmalist}
+    \end{lemma}
+    \begin{proof}
+        Simple induction.
+    \end{proof}
+
+    \begin{lemma}\label{lem:weakening2}
+        $\typeruled{\Gamma}{\Delta}{e}{j}{A}$ implies 
+        \begin{lemmalist}
+        \item $\typeruled{\Gamma, \Gamma'}{\Delta}{e}{j}{A}$ and \label{lem:weakening2-typing}
+        \item $\semD{\typeruled{\Gamma,\Gamma'}{\Delta}{e}{j}{A}} = \comp{\pi_1}{\semD{\typeruled{\Gamma}{\Delta}{e}{j}{A}}}$. \label{lem:weakening2-semantics}
+        \end{lemmalist}
+    \end{lemma}
+    \begin{proof}
+        \ref{lem:weakening2-typing} Simple induction.
+        
+        \ref{lem:weakening2-semantics} By case analysis and \Cref{lem:weakening1}. 
+    \end{proof}
+    
+    \begin{proof}[of \Cref{lem:js-implies-fun-typing}]
+        \ref{lem:js-implies-fun-typing1} Simple induction and use of \Cref{lem:weakening2} to make the contexts agree. \textsc{Proj} was specifically included in the irreversible language for this proof.
+        
+        \ref{lem:js-implies-fun-typing2} Via \textsc{Proj}.
+    \end{proof}
+    
+    \begin{lemma} \label{lem:js-implies-fun-semantics}
+        For well-typed terms the following holds.
+        \begin{lemmalist}
+            \item $\uncurry\,(\comp{\semD{\typeruled{\Gamma}{\Delta}{e}{\js}{A}}}{\f{-}}) = \uncurry\,\semD{\typeruled{\Gamma,\Delta}{\emptyset}{e}{\fun}{A}}$ \label{lem:js-implies-fun-semantics1}
+            \item $\comp{(\uncurry\,\semD{\typeruled{\Gamma}{\emptyset}{e}{\fun}{\homD{A}{B}}})}{\f{-}} = \uncurry\,\semD{\typeruled{\Gamma}{\emptyset}{e}{\fun}{\homC{A}{B}}}$ \label{lem:js-implies-fun-semantics2}
+        \end{lemmalist}
+    \end{lemma}
+    \begin{proof}
+        By simultaneous induction over typing derivation.
+        
+        \ref{lem:js-implies-fun-semantics1} Checking the base case \textsc{RVar} is routine expansion. We assume that $\f{-}$ commutes with all the structure used in the semantics. The only complication is \textsc{App} where we have to use \ref{lem:js-implies-fun-semantics2}.
+        
+        \ref{lem:js-implies-fun-semantics2} \textsc{Const} and \textsc{Var} By TODO. \textsc{Lam} By \ref{lem:js-implies-fun-semantics1}. \textsc{LetV}, \textsc{App}, \textsc{LetU}, \textsc{LetT} and \textsc{Curry} by induction assumption.
+    \end{proof}
+    
+    \begin{theorem} \label{thm:fun-equals-fun}
+        The following holds.
+        \begin{theoremlist}
+            \item $\typeruled{\Gamma}{\emptyset}{e}{\fun}{A}$ if and only if $\typerulel{\Gamma}{e}{A}$ and \label{thm:fun-equals-fun-typing}
+            \item $\uncurry\,\semD{\typeruled{\Gamma}{\emptyset}{e}{\fun}{A}} = \semL{\typerulel{\Gamma}{e}{A}}$ \label{thm:fun-equals-fun-semantics}
+        \end{theoremlist}
+    \end{theorem}
+    \begin{proof}
+        \ref{thm:fun-equals-fun-typing} Simple induction.
+        
+        \ref{thm:fun-equals-fun-semantics} \textsc{Const}, \textsc{Var}, \textsc{Unit}, \textsc{Tup} and \textsc{Proj} are straight-forward. 
+    \end{proof}
+    
+    \begin{theorem}
+        For well-typed terms the following holds. \label{thm:forward-equals-fun}
+        \begin{theoremlist}
+        \item $\uncurry\,(\comp{\semD{\typeruled{\Gamma}{\Delta}{e}{\js}{A}}}{\f{-}}) = \semL{\typerulel{\Gamma, \Delta}{e}{A}}$ and
+        \item $\comp{(\uncurry\,\semD{\typeruled{\Gamma}{\emptyset}{e}{\fun}{\tjs{A}{B}}})}{\f{-}} = \semL{\typerulel{\Gamma}{e}{\tfun{A}{B}}}$.
+        \end{theoremlist}
+    \end{theorem}
+    \begin{proof}
+        By \Cref{lem:js-implies-fun-typing}, \Cref{lem:js-implies-fun-semantics} and \Cref{thm:fun-equals-fun}.
+    \end{proof}
+    
+    \section{Extending the Language}
+    
+    \begin{figure}
+        \centering
+        \begin{align*}
+            \comp[\C_T]{f}{g} &= \comp[\C]{\comp[\C]{f}{T\,g}}{\mu} \\
+            \id[\C_T] &= \munit \\
+            \tensor[\C_T]{f}{g} &= \comp[\C]{\comp[\C]{\comp[\C]{(\tensor[\C]{f}{g})}{\mstrength}}{T\,\mstrength}}{\mjoin} \\
+            \dup[\C_T] &= \comp[\C]{\dup[\C]}{\munit} \\
+            \terminal[\C_T] &= \comp[\C]{\terminal[\C]}{\munit} \\
+            \curry[\C_T]\,f &= \comp[\C]{(\curry[\C]\,f)}{\munit} \\
+            \uncurry[\C_T]\,f &= \comp[\C_T]{(\tensor[\C_T]{\id[\C_T]}{f})}{(\uncurry[\C]\,\id)} \\
+            \sem{\tfun{A}{B}} &= A \to T\,B
+        \end{align*}
+        \caption{Computational Semantics}
+        \label{fig:computational-semantics}
+    \end{figure}
+    
+    We extend the language by using Moggi's computational lambda calculus. Instead of assuming our irreversible category to be cartesian closed we assume it to be the Kleisli-category $\C_T$ of a strong monad $(T, \mjoin, \munit, \mstrength)$ over a cartesian closed category $\C$. The typing and interpration rules of \Cref{fig:semantics2} stay unchanged only the operators are to be read as stated in \Cref{fig:computational-semantics}. Of course we can retain the semantics from the previous section by using the identity monad.
+    
+    Additionally we will extend the syntactic sugar to allow let-expressions and (reversible) function application as pattern.
+    \begin{align*}
+    \sugar{\elet{\eapp{e_1}{p}}{e_2}{e_3}} &= \elet{p}{\eapp{\rev{e_1}}{e_2}}{e_3} \\
+    \sugar{\elet{(\elet{e_1}{p_1}{p_2})}{e_2}{e_3}} &= \elet{p_2}{e_2}{\elet{p_1}{e_1}{e_3}}
+    \end{align*}
+    With this syntactic sugar the set of terms that can appear in pattern position is actually the same as the set of terms that can appear as the body of a reversible function. We even have $\semD{\typeruled{\Gamma}{\emptyset}{\rev{(\elam{p}{e})}}{\fun}{\tjs{A}{B}}} = \semD{\typeruled{\Gamma}{\emptyset}{\elam{e}{p}}{\fun}{\tjs{B}{A}}}$.
+    
+    \subsection{Pattern Matching}
+    
+    Let's assume the category $\C$ representing the irreversible world has an operation to combine two morphisms $\orelse_A\colon \tensor{A}{A} \to A$ with an identity $\fail_{A}\colon I \to A$ such that \begin{align*}
+        \semL{\evar{a}, \evar{b}, \evar{c} \vdash (\evar{a} \orelse \evar{b}) \orelse \evar{c}} &= \semL{\evar{a}, \evar{b}, \evar{c} \vdash \evar{a} \orelse (\evar{b} \orelse \evar{c})} \\
+        \semL{\evar{a} \vdash \fail \orelse \evar{a}} &= \semL{\evar{a} \vdash \evar{a}} = \semL{\evar{a} \vdash \evar{a} \orelse \fail}
+    \end{align*}
+    We can use this to extend the base language with a pattern matching construct by giving the following syntactic sugar. 
+    \begin{align*}
+        \sugar{\ecaseof{e}{;}} &= \elet{x}{e}{\efail} \\
+        \sugar{\ecaseof{e_0}{\ecase{p_1}{e_1}\dots\ecase{p_n}{e_n}}} &= \stackunder{\elet{x}{\sugar{e_0}}{(\elet{\sugar{p_1}}{x}{\sugar{e_1}}) \orelse}}
+                   {\sugar{\ecaseof{x}{\ecase{p_2}{e_2}\dots\ecase{p_n}{e_n}}}}
+    \end{align*}
+    If the reversible category $\D$ has a similar operator such that $\f{{\orelse[\D]_A}} = {\orelse[\C]_A}$ and $\f{\fail[\D]_A} = \fail[\C]_A$ then we can use the above definition unchanged to define pattern matching ambidirectionally.
+    
+    The Janus category $\JC$ inherits $\orelse$ from $\C$ as follows. 
+    \begin{align*}
+        f \orelse[\JC] g &= (\f{f} \orelse[\C] \f{g}, \b{f} \orelse[\C] \b{g}) \\
+        \fail[\JC]_{A, B} &= (\fail[\C]_{A, B}, \fail[\C]_{B, A}) 
+    \end{align*}
+    
+    For other dagger categories an appropriate operator is harder to define. For $\coreC$ for example we need to ensure that $\comp{\f{(f \orelse g)}}{\b{(f \orelse g)}} = \id$. With the above laws we can show that \begin{align*}
+        \comp{\f{(f \orelse g)}}{\b{(f \orelse g)}} &= \comp{(\f{f} \orelse \f{g})}{(\b{f} \orelse \b{g})} \\
+        &= \comp{\f{f}}{\b{f}} \orelse \comp{\f{f}}{\b{g}} \orelse \comp{\f{g}}{\b{f}} \orelse \comp{\f{g}}{\b{g}}
+    \end{align*}
+    but $f$ and $g$ have no relationship with each other in general. 
+    
+    A strategy to deal with this problem is the so called symmetric first-match policy as proposed in CITE. Here we deal with partial function so the semantics lives in the Maybe-monad. We will write $\C_{+1}$ for the Kleisli-category of $\C$ over the Maybe-monad. Let $-\downarrow\colon A \to \tbool$ be the function that returns $\etrue$ for all pure values and $\efalse$ otherwise. With these ideas in mind we define a homset monoid in $\JC_{+1}$ as follows.\[
+    f \orelse^{\JC_{+1}} g = \comp{\rev{(\eapp{\duplicate_{\tbool}}{\elam{\evar{a}}{ (\eapp{\f{f}}{\evar{a}})\downarrow}})}}{\comp{(\juncurry\,\eapp{\select_{\homJ{A}{j}{B}}}{\epair{f}{g}})}{(\eapp{\duplicate_{\tbool}}{\elam{\evar{b}}{(\eapp{\b{f}}{\evar{b}})\downarrow}})}}
+    \]
+    This generalized the approach in the paper from just certain parts of case-expressions to all expressions to allow for a more succinct presentation.
+    
+    The problem here is that we have $\f{(f \orelse^{\JC_{+1}} g)} \neq \f{f} \orelse^{\C_{+1}} \f{g}$ which so far has been fundamental to our approach. And since the symmetric first-match policy must refer to the reverse direction of $f$ there is little hope to find a compatible homset-monoid for $\C_{+1}$ where there is no reverse direction.
+    
+    There is hope, though. Any idempotent monoid induces a partial order as follows.
+    \[
+    f \leq g \iff f \orelse g = g = g \orelse f
+    \]
+    \begin{lemma}
+        $\f{(f \orelse^{\JC_{+1}} g)} \leq \f{f} \orelse^{\C_{+1}} \f{g}$
+    \end{lemma}
+    \begin{proof}
+    \end{proof}
+    
+    There have been several strategies proposed in the literature. One way is to ensure at compile-time that the mixed compositions cannot appear. Another strategy is to check at run-time that the result of the compound function will choose the same function in the opposite direction.
+    
+    \begin{align*}
+        f \orelse_j g &= \comp{\rev{(\eapp{\forget_{\tbool}}{\f{f}\downarrow})}}{\comp{(\juncurry\,\eapp{\select_{\homJ{A}{j}{B}}}{\epair{f}{g}})}{(\eapp{\forget_{\tbool}}{\b{f}\downarrow})}}
+    \end{align*}
+    
+    \begin{lemma}
+        $(f \orelse g) \orelse h = f \orelse (g \orelse h)$
+    \end{lemma}
+    
+    \subsection{Duplicating and Discarding Information}
+    
+    \begin{definition}
+        Monad $T\,X = X + 1$, $\munit_A = \iota_1$, $\mjoin_A = [id_{T\,A}, \iota_2]$, $\mstrength_{A, B} = $.
+        $\sem{\efail_{A, B}}\colon \homC{A}{B} = \iota_2$
+    \end{definition}
+    
+    \begin{align*}
+        \forget_A &\colon A \to \homD{A}{I} \\
+        \semD{\evar{a} \vdash \f{(\eapp{\forget_A}{\evar{a}})}} &= \semL{\emptyset \vdash \elam{\evar{a'}}{\eunit}} \\
+        \semD{\evar{a} \vdash \b{(\eapp{\forget_A}{\evar{a}})}} &= \semL{\emptyset \vdash \elam{\eunit}{\evar{a}}}
+    \end{align*}
+    
+    \begin{align*}
+        \duplicate_A &\colon A \to \homD{I}{A} \\
+        \semD{\evar{a} \vdash \f{(\duplicate_A\,\evar{a})}} &= \semL{\evar{a} \vdash \elam{\evar{a'}}{\eapp{\eapp{\eifthenelse{\evar{a'} = \evar{a}}{\eunit}{\efail}}}}} \\
+        \semD{\evar{a} \vdash \b{(\duplicate_A\,\evar{a})}} &= \semL{\evar{a} \vdash \elam{\eunit}{\evar{a}}}
+    \end{align*}
+    
+
+    
+    \subsection{Recursion}
+    
+    If $\C$ admits fixpoints $\fix_A\colon \homC{A}{A} \to \homC{I}{A}$ with $\comp{\fix_A\,f}{f} = \fix_A\,f$ then we can immediately define recursive reversible morphisms in $\D$ by setting $A = \homD{B}{C}$.
+    
+    \section{Examples}
+    
+    \subsection{Dagger Symmetric Monodial Isos}
+    
+    \begin{align*}
+        \evar{rev} &= \elam{\evar{f}}{\elam{\eapp{\evar{f}}{\evar{x}}}{\evar{x}}} \\
+        \evar{assoc} &= \elam{\epair{\epair{\evar{a}}{\evar{b}}}{\evar{c}}}{\epair{\evar{a}}{\epair{\evar{b}}{\evar{c}}}} \\
+        \evar{swap} &= \elam{\epair{\evar{a}}{\evar{b}}}{\epair{\evar{b}}{\evar{a}}} \\
+        \evar{unitl} &= \elam{\evar{a}}{\epair{\eunit}{\evar{a}}} \\
+        \evar{unitr} &= \elam{\evar{a}}{\epair{\evar{a}}{\eunit}}
+    \end{align*}
+    
+    \subsection{Lists}
+    
+    Assume for every type $\tau$ there is a type $\tlist{\tau}$ with constant symbols $\enil_\tau\colon \tjs{\tunit}{\tlist{\tau}}$ and $\econs_\tau\colon \tjs{\tpair{\tau}{\tlist{\tau}}}{\tlist{\tau}}$ and having computable equality if $\tau$ has computable equality. We can write functions for appending to a list and reversing a list.
+    \begin{align*}
+        \evar{append} &= \stackunder{
+            \phantom{\eorelse} \elam{\epair{\eapp{\enil}{\eunit}}{\evar{x}}}{\eapp{\econs}{\epair{\evar{x}}{\eapp{\enil}{\eunit}}}}
+            }{
+            \eorelse 
+            \elam{\epair{\eapp{\econs}{\epair{\evar{y}}{\evar{r}}}}{\evar{x}}}{\eapp{\econs}{\epair{\evar{y}}{\eapp{\evar{append}}{\epair{\evar{r}}{\evar{x}}}}}}} \\
+        \evar{reverse} &= \stackunder{
+            \phantom{\eorelse} 
+            \elam{\eapp{\enil}{\eunit}}{\eapp{\enil}{\eunit}}
+            }{
+            \eorelse           \elam{\eapp{\econs}{\epair{\evar{x}}{\evar{r}}}}{\eapp{\evar{append}}{\epair{\evar{x}}{\eapp{\evar{reverse}}{\evar{r}}}}}
+            }
+    \end{align*}
+    
+    We can even define a right-fold.
+    \begin{align*}
+        \stackMath\evar{foldr} &= \elam{\evar{f}}{\stackunder{
+            \phantom{\eorelse} \elam{\epair{\eapp{\econs}{\epair{\evar{y}}{\evar{r}}}}{\evar{x}}}{\eapp{\eapp{\evar{foldr}}{\evar{f}}}{\epair{\evar{r}}{\eapp{\evar{f}}{\epair{\evar{y}}{\evar{x}}}}}}}{
+            \eorelse           \elam{\epair{\eapp{\enil}{\eunit}}{\evar{x}}}{\evar{x}}}
+            }
+    \end{align*}
+    
+    $\eapp{\evar{foldr}}{\evar{f}}$ establishes a relationship between $\tpair{\tlist{A}}{B}$ and $B$ using a suitable $f$. Through pattern matching the values $b\colon B$ such that $\eapp{\rev{\evar{f}}}{b}$ is not defined are the ground values.
+    
+    The na\"{i}ve left-fold definition is not useful unfortunately. The reverse direction would recurse indefinitely.
+    % \begin{align*}
+    %     \evar{foldl^*} &= \elam{\evar{f}}{\begin{array}{l}
+    %         \phantom{\eorelse} \elam{\epair{\eapp{\econs}{\epair{\evar{y}}{\evar{r}}}}{\evar{x}}}{\eapp{f\evar{}{\epair{\evar{y}}{\eapp{\eapp{\evar{foldl}}{\evar{f}}}}{\epair{r}{\evar{x}}}}}} \\
+    %         \eorelse           \elam{\epair{\eapp{\enil}{\eunit}}{\evar{x}}{\evar{x}}}
+    %         \end{array}}
+    % \end{align*}
+    
+    It is possible a define $\evar{foldl} = \elam{f}{\elam{\epair{\evar{x}}{\evar{l}}}{\eapp{\eapp{\evar{foldr}}{(\comp{\swap}{\evar{f}})}}{\epair{\eapp{\evar{reverse}}{\evar{l}}}{\evar{x}}}}}$ though.
+    \subsection{Integer parser}
+    
+    \section{Related Work}
+    
+    \subsection{Lenses}
+    
+    \begin{definition}
+        A \emph{lens} $l$ between types $A$ and $B$ is a pair of functions $\lget{l}\colon A \to B$ and $\lput{l}\colon B \times A \to A$. It is called \emph{well-behaved} if \begin{align*}
+            \eapp{\lput{l}}{\epair{\eapp{\lget{l}}{a}}{a}} &= a &
+            \eapp{\lget{l}}{(\eapp{\lput{l}}{\epair{a}{b}})} &= b\;.
+        \end{align*}
+    \end{definition}
+    
+    Lenses are closed under composition and we can define an identity lens so they form a category enriched over $\Set$. Let $\Lens{\C}$ be the category of lenses formed by appropriate pairs of morphisms from a suitable category $\C$. Because any isomorphism in $\C$ naturally induces a lens we find that $\Lens{\C}$ inherits the symmetric monoidal structure from $\C$. Unfortunately lenses are asymmetrical so we don't have a dagger category. 
+    
+    Defining a $\juncurry$ is difficult. The problem is that when $\juncurry$ transforms a lens-builder $f\colon C \to \homJ{A}{\xrightarrow{\Lens{\C}}}{B}$ $\tensor{-}{C}$ is applied to both $A$ and $B$ but $A$ appears twice in the signature of $\mathrm{put}$. So $\lput{(\juncurry\,f)}$ is of type $\homC{\tensor{(\tensor{B}{C})}{(\tensor{A}{C})}}{\tensor{A}{C}}$. We can remedy this by using the following isomorphic representation of well-behaved lenses over $\Set$.
+    
+    \begin{lemma} \label{lem:lensex-is-lens}
+        Existentially quantified pairs of inverse morphisms $\exists R. (A \to B \times R) \times (B \times R \to A)$ are isomorphic to well-behaved lenses between $A$ and $B$.
+    \end{lemma}
+    \begin{proof}
+        ($\Longrightarrow$) Let $(\f{f}, \b{f})\colon \exists R. (A \to B \times R) \times (B \times R \to A)$ be such that $\comp{\f{f}}{\b{f}} = \id$ and $\comp{\b{f}}{\f{f}} = \id$. Then we define a lens $l$ with \begin{align*}
+            \lget{l}\,a &= \pi_1\,(\f{f}\,a) &
+            \lput{l}\,(b, a) &= \b{f}\,(b, \pi_2\,(\f{f}\,a))\;
+        \end{align*}
+        
+        Now
+        \begin{align*}
+            & \eapp{\lput{l}}{\epair{\eapp{\lget{l}}{a}}{a}} &
+            & \eapp{\lget{l}}{(\eapp{\lput{l}}{\epair{b}{a}})} \\
+          = & \eapp{\b{f}}{\epair{\eapp{\pi_1}{(\eapp{\f{f}}{a})}}{\eapp{\pi_2}{(\eapp{\f{f}}{a})}}} &
+          = & \eapp{\pi_1}{(\eapp{\f{f}}{(\eapp{\b{f}}{\epair{b}{(\eapp{\pi_2}{(\eapp{\f{f}}{a})})}})})} \\
+          = & \eapp{\b{f}}{(\eapp{\f{f}}{a})} &
+          = & \eapp{\pi_1}{\epair{b}{(\eapp{\pi_2}{(\eapp{\f{f}}{a})})}} \\
+          = & a & = & b 
+        \end{align*}
+        
+        ($\Longleftarrow$) Let $l$ be a well-behaved lens between $A$ and $B$. Let $R_b = \eapp{\lput{l}}{\epair{b}{A}} \subseteq A$, $p_b\colon A \to R_b = \eapp{\lput{l}}{\epair{b}{-}}$ (WRONG: $R_b$ musn't be a dependent type) and $q_b\colon R_b \to A$ the injection of $R_b$ in $A$. Observe that $\comp{p_b}{q_b} = \eapp{\lput{l}}{\epair{b}{-}}$ and $\comp{q_b}{p_b} = \id_{R_b}$.
+        Define $(\f{f}, \b{f})\colon \exists R. (A \to B \times R) \times (B \times R \to A)$ with \begin{align*}
+            \f{f} &= \elam{a}{\elet{b}{\eapp{\lget{l}}{a}}{\epair{b}{\eapp{p_b}{a}}}} \\
+            \b{f} &= \elam{\epair{b}{r}}{\eapp{\lput{l}}{\epair{b}{\eapp{q_b}{r}}}}
+        \end{align*}
+        
+        Now
+        \begin{align*}
+            & \eapp{\b{f}}{(\eapp{\f{f}}{a})} &
+            & \eapp{\f{f}}{(\eapp{\b{f}}{\epair{b}{r}})} \\
+          = & \elet{b}{\eapp{\lget{l}}{a}}{\eapp{\lput{l}}{\epair{b}{\eapp{q_b}{(\eapp{p_b}{a})}}}} &
+          = & \elet{a}{\eapp{\lput{l}}{\epair{b}{\eapp{q_b}{r}}}}{} \\
+          = & \elet{b}{\eapp{\lget{l}}{a}}{\eapp{\lput{l}}{\epair{b}{\eapp{\lput{l}}{\epair{b}{a}}}}} &
+            & \elet{b'}{\eapp{\lget{l}}{a}}{\epair{b'}{\eapp{p_{b'}}{a}}} \\
+          = & \elet{b}{\eapp{\lget{l}}{a}}{\eapp{\lput{l}}{\epair{b}{a}}} &
+          = & \elet{b'}{b}{\epair{b'}{\eapp{p_{b'}}{(\eapp{\lput{l}}{\epair{b}{\eapp{q_b}{r}}})}}} \\
+          = & a &
+          = & \epair{b}{\eapp{p_b}{(\eapp{\lput{l}}{\epair{b}{\eapp{q_b}{r}}})}} \\
+          & & = & \epair{b}{\eapp{p_b}{(\eapp{q_b}{(\eapp{p_b}{(\eapp{q_b}{r})})})}} \\
+          & & = & \epair{b}{r}
+        \end{align*}
+    \end{proof}
+    
+    \begin{remark}
+        The above proof works for any category that has existential quantification and is \emph{idempotent complete}. A category is idempotent complete if for all morphisms $f\colon A \to A$ with $\comp{f}{f} = f$ there exists an object $R$ so that $f$ can be split into two morphisms $g\colon A \to R$ and $h\colon R \to A$ such that $\comp{g}{h} = f$ and $\comp{h}{g} = \id_R$.
+    \end{remark}
+    
+    \begin{lemma} \label{lem:lensex-is-category}
+        Morphism pairs of the form $\exists R. (A \to B \times R) \times (B \times R \to A)$ form a symmetric monoidal category.
+    \end{lemma}
+    \begin{proof}
+        Composition is given by a morphism in the janus category \begin{align*}
+            \comp{-}{-} &= \semD{\evar{f}, \evar{g}; \evar{a} \vdash \elet{\epair{\evar{b}}{\evar{rf}}}{\eapp{\evar{f}}{\evar{a}}}{\elet{\epair{\evar{c}}{\evar{rg}}}{\eapp{\evar{g}}{\evar{b}}}{\epair{\evar{c}}{\epair{\evar{rf}}{\evar{rg}}}}}} \\
+            &= \lambda (f, g). \comp[\JC]{f}{(\tensor[\JC]{g}{\id})} \\
+            &= \lambda (f, g). \janus{
+                \lambda a. \nlet{(b, r_f)}{\f{f}\,a}{\nlet{(c, r_g)}{\f{g}\,b}{(c, (r_f, r_g))}}}{
+                \lambda (c, (r_f, r_g)). \b{f}\,(\b{g}\,(c, r_g), r_f)}
+        \end{align*} so $R_{\comp{f}{g}} = \tensor{R_f}{R_g}$. Associativity is proven by associativity of $\comp{-}{-}$ and $\tensor{-}{-}$.
+        
+        For isomorphisms in $\C$ we find that we can set $R = I$. So the identities and the symmetric monoidal structure is isomorphic to that in $\JC$.
+    \end{proof}
+    
+    \begin{definition}
+        Define the category $\LensEx{\C}$ having the same objects as $\C$ and as pairs of inverse morphisms of type $\exists R. (A \to B \times R) \times (B \times R \to A)$ as in \Cref{lem:lensex-is-category}.
+        
+        Define $\lget{-}\colon \LensEx{\C} \to \C$ as an identity on objects functor with $\lget{(\f{f}, \b{f})} = \pi_1\,(\f{f}\,a)$  as in \Cref{lem:lensex-is-lens}.
+        
+        Define $\juncurry[\LensEx{\C}]\,f = \janus
+            {\lambda (a, c). \nlet{(b, r)}{\f{(f\,c)}\,a}{((b, c), r)}}
+            {\lambda ((b, c), r). \b{(f\,c)}\,(b, r)}$.
+    \end{definition}
+    
+    \begin{theorem}
+        $(\C, \LensEx{\C}, \lget{-}, \juncurry[\LensEx{\C}])$ is a $\juncurry$-structure.
+    \end{theorem}
+    \begin{proof}
+        That $\lget{-}$ is a symmetric monoidal functor is immediate from \Cref{lem:lensex-is-category}.
+        
+        To show that $\juncurry[\LensEx{\C}]\,f$ is indeed a morphism of $\LensEx{\C}$ observe that $\juncurry[\LensEx{\C}]\,f = \comp[\JC]{(\juncurry[\JC]\,f)}{(\tensor{\id}{\swap})}$. Now with the same argument as in \Cref{ex:coreC} we have 
+        \begin{align*}
+          & (\comp[\C]{\f{(\juncurry[\LensEx{\C}]\,f)}}{\b{(\juncurry[\LensEx{\C}]\,f)}}, \comp[\C]{\b{(\juncurry[\LensEx{\C}]\,f)}}{\f{(\juncurry[\LensEx{\C}]\,f)}}) \\
+        = & \comp[\JC]{\comp[\JC]{(\juncurry[\JC]\,f)}{(\tensor{\id}{\swap})}}{\comp[\JC]{\rev{(\tensor{\id}{\swap})}}{\rev{(\juncurry[\JC]\,f)}}} \\
+        = & \id
+        \end{align*}
+        
+        Finally we show that $\juncurry[\LensEx{\Set}]$ commutes with $\lget{-}$.
+        \begin{align*}
+            \lget{(\juncurry[\LensEx{\C}]\,f)} &= \comp{(\lambda (a, c). \nlet{(b, r)}{\f{(f\,c)}\,a}{((b, c), r)})}{\pi_2} \\
+            & = (\lambda (a, c). (\f{(f\,c)}, c) \\
+            & = \juncurry[\C]\,(\comp{f}{\f{-}}) 
+        \end{align*}
+    \end{proof}
+    
+    So with Emordnilap we can write lenses in a point-full style and by \Cref{thm:forward-equals-fun} the resulting $\mathsf{get}$-function will behave exactly as if the program was interpreted as a normal irreversible functional program. We can even extend the language to allow the discarding of variables as shown in \Cref{fig:lens-terminal}.
+    
+    \begin{figure}
+        
+        {\centering
+        \def\arraystretch{1.5}
+        \begin{tabular}{l|l c l}
+              Name & Typing & & Semantics ($\semD{-}$) \\
+              \hline\hline
+              \multirow{3}{*}{\textsc{Term}}
+            & $\typeruled{\Gamma}{\Delta}{e}{\js}{A}$
+            & = & $g$ \\ \cline{2-2}
+            & $\typeruled{\Gamma}{\Delta,\Delta'}{e}{\js}{A}$
+            & = & $\semL{\gamma \vdash \tensor{\id_{\sem{\Delta}}}{\terminal_{\sem{\Delta'}}}}$ \\
+            & & & \hfill where $\terminal_A = \janus{\lambda a. ((), a)}{\lambda ((), a). a}$
+            \\ \hline
+        \end{tabular}}
+        \caption{Typing and semantics of discarding information for lenses}
+        \label{fig:lens-terminal}
+    \end{figure}
+    
+    \subsection{Traces, Hylomorphisms}
+    
+    \subsection{RFun, Janus, Applicative}
+    
+    \section{Conclusion and Future Work}
+
+    
+\end{document}

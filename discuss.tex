@@ -1,0 +1,2115 @@
+\documentclass[runningheads,envcountsame]{llncs}
+%
+\usepackage[utf8]{inputenc}
+\usepackage[normalem]{ulem}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,hyperref,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx,ulem,tikz-cd,centernot}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in, top=0.4in]{geometry}
+\usepackage{xcolor}
+
+\AtEndEnvironment{proof}{\phantom{}\qed} %Automatically add qed symbol to the end of proof environment
+
+
+\renewcommand{\labelitemi}{\textbullet}
+
+\begin{document}
+
+\include{definitions}
+\newcommand{\hl}[1]{%
+  \colorbox{yellow!50}{$\displaystyle#1$}}
+
+\section{Choice}
+
+\subsection{10.2.}
+Given a monoid structure on hom-sets, i.e., \begin{align*}
+    \orelse&\colon \homC{A}{B} \times \homC{A}{B} \to \homC{A}{B} \\
+    \fail&\colon \homC{A}{B} \text{ (or $\homC{I}{B}$)} \\
+    (f \orelse g) \orelse h &= f \orelse (g \orelse h) && \text{(associativity)}\\
+    \fail \orelse f &= f = f \orelse \fail && \text{(unit)}\\
+    \comp{f}{(g \orelse h)} &= (\comp{f}{g}) \orelse (\comp{f}{h}) &&\text{(naturality in $A$)} \\
+    \comp{(f \orelse g) }{h} &= (\comp{f}{h}) \orelse (\comp{g}{h}) &&\text{(naturality in $B$)} \\
+    \rev{(f \orelse[\D] g)} &= \rev{f} \orelse[\D] \rev{g} &&\text{(conversibility)} \\
+    \f{(f \orelse[\D] g)} &= \f{f} \orelse[\C] \f{g} &&\text{(conversibility)}
+\end{align*}
+we can define semantics for \texttt{case}-expressions: \begin{align*}
+    \sem{\ecaseof{e_0}{\ecase{p_1}{e_1} \dots \ecase{p_n}{e_n}}} &=
+        \comp{\sem{e_0}}{(\comp{\rev{\sem{p_1}}}{\sem{e_1}} \orelse \dots \orelse \comp{\rev{\sem{p_n}}}{\sem{e_n}})}
+\end{align*}
+
+For example use Kleisli-category over monad $A + 1$: \begin{align}
+    \select_A &\colon A \times A \cong \homC{2}{A} \\
+    \eifthenelse{a}{b}{c} &= \select\,(\elam{\eunit}{b}, \elam{\eunit}{c})\,a\,\eunit \\
+    \defined{-} &\colon \homC{A}{B} \to \homC{A}{2} \\
+    \fail &= \mathsf{inj}_2 \\
+    \remember &\colon A \to \homD{I}{A} \\
+    \f{(\remember\,a)} &= \elam{\eunit}{a} \\
+    \b{(\remember\,a)} &= \elam{a'}{\eunit} \\
+    f \orelse g &= \comp{\juncurry\,(\remember\,\defined{\f{f}})}{\comp{\swap}{\comp{\juncurry\,(\select\,(f, g))}{\comp{\swap}{\rev{(\juncurry\,(\remember\,\defined{\b{f}}))}}}}} \\
+        &= \janus{
+            \lambda a. \eifthenelse{\defined{\f{f}}\,a}{\f{f}\,a}{\f{g}\,a}
+        }{\lambda a. \eifthenelse{\defined{\b{f}}\,a}{\b{f}\,a}{\b{g}\,a}}
+\end{align}
+
+Note that $\comp{\f{(\remember\,a)}}{\b{(\remember\,a)}} = \id_I$ for any type $A$.
+
+Problem for category of partial isomorphisms (for example):
+\begin{align*}
+    \comp{\f{(f \orelse g)}}{\b{(f \orelse g)}} &= \comp{\f{f}}{\b{f}} \orelse \hl{\comp{\f{f}}{\b{g}}} \orelse \hl{\comp{\f{g}}{\b{f}}} \orelse \comp{\f{g}}{\b{g}}
+\end{align*}
+
+Define partial isomorphism restriction of $\remember$ for types with computable equality: \begin{align*}
+    \duplicate &\colon A \to \homD{I}{A} \\
+    \f{(\duplicate\,a)} &= \elam{\eunit}{a} \\
+    \b{(\duplicate\,a)} &= \elam{a'}{\eifthenelse{a = a'}{\eunit}{\fail}} 
+\end{align*}
+so $\comp{\f{(\duplicate\,a)}}{\b{(\duplicate\,a)}} = \id_I$ and $\defined{\b{(\duplicate\,a)}}\,a' \implies (\comp{\b{(\duplicate\,a)}}{\f{(\duplicate\,a)}})\,a' = a'$.
+
+So define \begin{align*}
+    f \orelse g &= \comp{\juncurry\,(\duplicate\,\defined{\f{f}})}{\comp{\swap}{\comp{\juncurry\,(\select\,(f, g))}{\comp{\swap}{\juncurry\,(\duplicate\,\defined{\b{f}})}}}} \\
+    &= \janus{
+        \lambda a. \eifthenelse{\defined{\f{f}}\,a}{\f{f}\,a}{\left(\stackunder{\elet{y}{\f{g}\,a}{}}{\eifthenelse{\neg\defined{\b{f}}\,y}{y}{\fail}}\right)}
+    }{\dots}
+\end{align*}
+(symmetric first-match policy, Yokoyama 2012)
+
+Problem here: $\f{(f \orelse[\D] g)} \neq \f{f} \orelse[\C] \f{g}$ because $\b{f}$ is required to define $\orelse[\D]$ but $\b{-}$ doesn't exist for morphisms in $\C$. 
+
+The (somewhat) ugly solution is to have two different \texttt{case}-expressions. The one that only works for $\D$ would still be usable in purely $\C$-programs. So $\mathtt{case}^\D$ would be defined only for cases which use variables linearly and would use first-match-policy and would be usable in reversible and irreversible functions. $\mathtt{case}^\C$ is the normal one and only usable in irreversible functions. So we can keep $\f{\sem{\mathtt{case}^\D \dots}} = \sem{\mathtt{case}^\C \dots}$.
+
+Other option in literature is to look at structure of final expressions in each case and ensure at compile-time that cases don't intersect in reverse. New idea: do this on the type level. So instead of having to write cases like $\ecaseof{\dots}{\ecase{\dots}{\dots \mathtt{in}\,Left\,x}\ecase{\dots}{\dots \mathtt{in}\,Right\,y}}$ we can write any expression with types $Left\,A$ and $Right\,B$, i.e., they don't intersect, resulting in the union type $Left\,A \cup Right\,B$. Needs union types and decidable check that intersection is empty.
+
+Other (minor) problem: case can fail in expression as well as pattern. Not typically how functional languages work.
+
+\subsection{11.3. -- “Pure” pattern matching}
+
+\paragraph*{Irreversibly}
+
+An irreversible pattern matching for some type $T$ is a natural transformation $rec_{T, C}\colon (\textit{something simpler than $\homC{T}{C}$}) \to \homC{T}{C}$.
+
+\begin{itemize}
+    \item \textbf{Variable $A$} \\
+          Iso: $rec_A\colon \homC{A}{C} \cong \homC{A}{C}$ \\
+          $\sem{\elam{v}{e}\colon \homC{A}{C}} \colon \Gamma \to \homC{A}{C} = \lambda \gamma. \lambda (). rec_A\,(\sem{v\colon A \vdash e\colon C}\,\gamma)$
+    \item \textbf{Product $A \times B$} \\
+          Iso: $rec_{\times}\colon \homC{A \times B}{C} \cong \homC{A \times B}{C}$ \\
+          $\sem{\elam{\epair{v_1}{v_2}}{e}\colon \homC{A \times B}{C}} = rec_\times\,\sem{v_1\colon A, v_2\colon B \vdash e\colon C}$
+    \item \textbf{Co-Product $A + B$} \\
+          Iso: $rec_{+}\colon \homC{A}{C} \times \homC{B}{C} \cong \homC{A + B}{C}$ \\
+          $\sem{\lambda \eapp{\iota_1}{v_1}. e_1 \mid \eapp{\iota_2}{v_2}. e_2 \colon \homC{A + B}{C}} = rec_+\,(\sem{v_1\colon A \vdash e_1\colon C}, \sem{v_2\colon B \vdash e_2\colon C})$
+    \item \textbf{Recursive Type $T$} \\
+          Iso: $f\colon T \cong F\,T$ (usually via initial $F$-Algebra $(T, f^{-1}))$ \\
+          Example $T$ is list of $A$: $F\,X = 1 + A \times X$ \\
+          $\sem{\lambda \iota_1 (). e_1 \mid \iota_2 (v_1, v_2). e_2\colon \homC{T}{C}} = \comp{f}{\sem{\lambda \dots\colon \homC{1 + A \times T}{C}}}$ \\
+          (no syntax in equi-recursive type system)
+\end{itemize}
+
+\paragraph*{Reversibly}
+
+A pattern matcher for some type $T$ is a natural transformation $rec_{T, C}\colon (\textit{something simpler than $\homD{T}{C}$}) \to \homD{T}{C}$.
+
+\begin{itemize}
+    \item \textbf{Variable $v\colon A$} \\
+          Iso: $rec_A\colon \homD{A}{C} \cong \homD{A}{C}$ \\
+          $\sem{\elam{v}{e}\colon \homD{A}{C}} = rec_A\,\sem{v\colon A \vdash e\colon A}$
+    \item \textbf{\sout{Product $A \times B$} Tensor-Product $A \otimes B$} \\
+          Iso: $rec_{\otimes}\colon \homD{A \otimes B}{C} \cong \homD{A \otimes B}{C}$ \\
+          $\sem{\elam{\epair{v_1}{v_2}}{e}\colon \homD{A \times B}{C}} = rec_\times\,\sem{v_1\colon A, v_2\colon B \vdash e\colon C}$
+    \item \textbf{Recursive Type $T$} \\
+          Iso: $f\colon T \cong F\,T$ (initial $F$-Algebra $(T, f)$ is also a terminal $F$-Coalgebra in a dagger category with $F$ a dagger functor) \\
+          Example $T$ is list of $A$: $F\,X = 1 + A \times X$ \\
+          $\sem{\lambda \iota_1 (). e_1 \mid \iota_2 (v_1, v_2). e_2\colon \homD{T}{C}} = \comp{f}{\sem{\lambda \dots \colon \homD{1 + A \times T}{C}}}$
+    \item \textbf{\sout{Co-Product $A + B$} Tensor-Product $A \oplus B$} \\
+          Iso: $rec'_{\oplus}\colon \homD{A}{C} \times \homD{B}{D} \cong \homD{A \oplus B}{C \oplus D}$ \\
+          $\sem{\Gamma; \emptyset \vdash \lambda \iota_1\,v_1. \iota_1\,e_1 \mid \iota_2\,v_2. \iota_2\,e_2} = rec'_\oplus\,(\sem{\lambda v_1. e_1}\,\gamma, \sem{\lambda v_2. e_2}\,\gamma)$ \\
+          Preserves all thinkable properties of a janus. Which ones?
+    \item \textbf{\sout{Co-Product $A + B$} Biproduct $A \oplus B$} \\
+          Iso: $rec_{\oplus}\colon \homD{A}{C} \times \homD{B}{C} \cong \homD{A \oplus B}{C}$ \\
+          $\sem{\Gamma; \emptyset \vdash \lambda \iota_1 v_1. e_1 \mid \iota_2 v_2. e_2} = rec_\oplus\,(\sem{\lambda v_1. e_1}\,\gamma, \sem{\lambda v_2. e_2}\,\gamma)$ \\
+          In $\Set$ we have \begin{align}
+              C^A \times C^B &\cong C^{A+B} \\
+              A^C \times B^C &\ncong {(A+B)}^C
+          \end{align} \\
+          Is there a monad $F$ such that \begin{align}
+              (F\,C)^A \times (F\,C)^B &\cong (F\,C)^{A+B} \\
+              (F\,A)^C \times (F\,B)^C &\cong {(F\,(A+B))}^C
+          \end{align}
+          $F\,X=D$ trivial. $F\,X=D^X$ contravariant -- except for $D=2$ $\implies$ covariant powerset monad. Does not preserve isomorphisms. $\Set_\mathcal{P} \cong \Rel$. What about $\Set_{\mathcal{P}_{<\infty}}$? Other solutions for $F$?
+\end{itemize}
+
+\subsection{11.3. -- “Impure” pattern matching}
+
+Monoid on hom-sets $(\homC{A}{B}, \obar, \fail_{A, B})$.
+
+$\f{\sem{\mathtt{case}^\D \dots}} \leq \sem{\mathtt{case}^\C \dots}$?
+
+$\f{\sem{\mathtt{case}^\D \dots}} \obar \sem{\mathtt{case}^\C \dots} = \sem{\mathtt{case}^\C \dots} = \sem{\mathtt{case}^\C \dots} \obar \f{\sem{\mathtt{case}^\D \dots}}$
+
+Monoid induces partial order $a \leq b \iff a \obar b = b = b \obar a$ if $a \obar a = a$.
+
+\section{20.4. -- Nambooripad order}
+
+Assume $\comp{\f{f}}{\b{f}} \leq \id$ (i.e., $\comp{\f{f}}{\b{f}} \obar \id = \id = \id \obar \comp{\f{f}}{\b{f}}$) and $\comp{\f{g}}{\b{g}} \leq \id$.
+
+What does $\comp{(\f{f} \obar \f{g})}{(\b{f} \obar \b{g})} \leq \id$ imply?
+
+\begin{align}
+\comp{\f{f}}{\b{f}} \obar \comp{\f{f}}{\b{g}} \obar \comp{\f{g}}{\b{f}} \obar \id &= \id \\
+\id \obar \comp{\f{f}}{\b{g}} \obar \comp{\f{g}}{\b{f}} \obar \comp{\f{g}}{\b{g}} &= \id
+\end{align}
+or 
+\begin{align}
+\comp{\f{f}}{\b{f}} \mathrel{/} (\comp{\f{f}}{\b{g}} \obar \comp{\f{g}}{\b{f}} \obar \id) &= \comp{\f{f}}{\b{f}} \mathrel{/} \id \\
+(\id \obar \comp{\f{f}}{\b{g}} \obar \comp{\f{g}}{\b{f}}) \setminus \comp{\f{g}}{\b{g}} &= \id \setminus \comp{\f{g}}{\b{g}}
+\end{align}
+
+\section{20.4. -- Monoid enrichment}
+
+Exercise:
+\begin{itemize}
+    \item Free monoid on set $A$: $A^*$, concatenation, empty list.
+    \item Free commutative monoid on $A$: $A \to \mathbb{N}$ with finite non-zero/finite multiset, point-wise addition/$\cup$, $\lambda n. 0$/$\emptyset$.
+    \item Free idempotent monoid on $A$: $A^*$ without any duplicated subsequence, 
+    concatenate and remove duplicated subsequences, empty list.
+    \item Coproduct of two monoids $(A, +_A, 0_A)$ and $(B, +_B, 0_B)$: $(A\setminus\{0\} + B\setminus\{0\})^*$ alternating, concat+reduce, empty list. 
+    \item Coproduct of two commutative monoids: $A \times B$, pointwise, $(0_A, 0_B)$. (Need commutativity for $[f, g]$ a homomorphism)
+    \item Coproduct of two idempotent monoids: same as normal but with duplicated subsequences removed
+\end{itemize}
+
+Equivalence classes/idempotent functions/closure operators?
+
+Tensorproduct of (idempotent) monoids?
+
+S.M. -- Given monoids $M$ and $N$, $M \otimes N$ is a monoid with a monoid morphism $\munit\colon M \times N \to M \otimes N$ such that for all bimorphisms $f\colon M \times N \to C$ there exists a unique monoid morphism $\bar f\colon M \otimes N \to C$ such that $\munit ; \bar f = f$.
+
+This means that the bimorphism $; \colon [A \to B] \times [B \to C] \to [A\to C]$ corresponds one-to-one to a monoid morphism $\bar ;\colon [A \to B] \otimes [B \to C] \to [A\to C]$. 
+
+
+\subsection{17.5. -- Doesn't work, but almost does}
+
+Let $\SetP$ be the category of pointed sets and functions that preserve the point. $\SetP$ is enriched over $\Set$ via:
+\begin{align}
+    \homSetP{A}{B} &\in \Set \\
+                   &= \{ f \in \homSet{A}{B} \mid f(*_A) = *_B \} \\
+    \comp[\SetP]{-}{-} &\colon \homSetP{A}{B} \times \homSetP{B}{C} \to  \homSetP{A}{C} \\
+                       &= \comp[\Set]{-}{-} \\
+    \id^{\SetP} &\colon 1 \to \homSetP{A}{A} \\
+                &= \lambda (). \id^{\Set}_A
+\end{align}
+
+Every $\homSetP{A}{B}$ is a monoid-object in $\Set$ as follows:
+\begin{align}
+    \munit_{\homSetP{A}{B}} &\colon 1 \to \homSetP{A}{B} \\
+                          &= \lambda (). \lambda a. *_B \\
+    \mu_{\homSetP{A}{B}} &\colon \homSetP{A}{B} \times \homSetP{A}{B} \to \homSetP{A}{B} \\
+                         &=
+\lambda (f, g). \lambda a. \begin{cases}
+    f(a) \mbox{ if } f(a) \neq *_B \\
+    g(a) \mbox{ otherwise}
+\end{cases}
+\end{align}
+
+In fact, $\munit\colon 1 \to \homSetP{-}{-}$ and $\mjoin\colon \homSetP{-}{-}^2 \to \homSetP{-}{-}$ are natural transformations (where $1$, $\homSetP{-}{-}$ and $\homSetP{-}{-}^2$ are functors from $\op{\SetP} \times \SetP \to \Set$), i.e., the following commutes for all $f\colon A' \to A$ and $g\colon B \to B'$ in $\SetP$:
+
+\begin{tikzcd}
+  1 \ar[r, "\id_1"] \ar[d, "\munit_{\homSetP{A}{B}}"] & 1 \ar[d, "\munit_{\homSetP{A'}{B'}}"] \\
+  \homSetP{A}{B} \ar[r, "\homSetP{f}{g}"] & \homSetP{A'}{B'}
+\end{tikzcd}
+
+i.e., $\comp{f}{\comp{\munit}{g}} = \munit$
+
+\begin{tikzcd}[column sep=8em]
+  \homSetP{A}{B} \times \homSetP{A}{B} \ar[r, "\homSetP{f}{g} \times \homSetP{f}{g}"] \ar[d, "\mu_{\homSetP{A}{B}}"] & \homSetP{A'}{B'} \times \homSetP{A'}{B'} \ar[d, "\mu_{\homSetP{A'}{B'}}"] \\
+  \homSetP{A}{B} \ar[r, "\homSetP{f}{g}"] & \homSetP{A'}{B'}
+\end{tikzcd}
+
+i.e., $(\comp{f}{\comp{h}{g}}) \mathrel{\mjoin} (\comp{f}{\comp{h'}{g}}) = \comp{f}{\comp{(h \mathrel{\mjoin} h')}{g}}$
+
+Enrichment over $\Mon$?
+
+We need $\comp[\SetP]{-}{-}$ in $\Mon$, so $\homSetP{A}{B} \times \homSetP{A}{B}$ needs to be a monoid (which it is by pointwise $\munit$ and $\mjoin$). It also needs to be a monoid-homomorphism, which implies: 
+\begin{align}
+    & \comp{(f \mathrel{\mjoin} f')}{(g \mathrel{\mjoin} g')} \\
+=   & \comp{-}{-}(\mjoin((f, g), (f', g'))) \\
+=   & \mjoin(\comp{-}{-}((f, g), (f', g'))) \\
+=   & (\comp{f}{g}) \mathrel{\mjoin} (\comp{f'}{g'}) \\
+\neq & (\comp{f}{g}) \mathrel{\mjoin} (\comp{f}{g'}) \mathrel{\mjoin} (\comp{f'}{g}) \mathrel{\mjoin} (\comp{f'}{g'})
+\end{align}
+
+It works out if we use $\otimes$ instead of $\times$, but $\otimes$ is not associative. \url{https://math.stackexchange.com/questions/205871/tensor-product-of-monoids-and-arbitrary-algebraic-structures?noredirect=1&lq=1}
+
+Enrichment over multicategory?
+
+I.e. now $\comp{-}{-}\colon \homC{A}{B}, \homC{B}{C} \to \homC{A}{C}$.
+
+\subsection{Pure vs. Impure Pattern Matching}
+
+Let there be a tensor product $(\oplus, a, r, l, \slashzero)$ that distributes over the standard tensor product via $d\colon A \otimes (B \oplus C) \cong (A \otimes B) \oplus (A \otimes C)$. Then we define ‘pure pattern-matching’ as follows:
+\begin{gather}
+    \dfrac{\begin{array}{c}
+        \typeruled{\Gamma,\Delta'}{\Delta}{e_0}{j}{A_1 \oplus  A_2} \\
+        \typeruled{\Gamma}{\Delta', v_1\colon A_1}{e_1}{j}{B_1} \\
+        \typeruled{\Gamma}{\Delta', v_2\colon A_2}{e_2}{j}{B_2}
+    \end{array}}{
+        \typeruled{\Gamma}{\Delta, \Delta'}{\ecaseof{e_0}{\ecase{\eapp{\iota_1}{v_1}}{\eapp{\iota_1}{e_1}} \ecase{\eapp{\iota_2}{v_2}}{\eapp{\iota_2}{e_2}}}}{j}{B_1 \oplus B_2}
+    }
+\end{gather}
+\begin{align}
+    \semD{\ecaseof{e_0}{\ecase{\eapp{\iota_1}{v_1}}{\eapp{\iota_1}{e_1}}
+                        \ecase{\eapp{\iota_2}{v_2}}{\eapp{\iota_2}{e_2}}}} &= \elam{\gamma}{
+        \comp{\juncurry{\elam{\delta'}{\eapp{\semD{e_0}}{(\gamma, \delta')}}}}{\comp{d}} \\
+        & \mathrel{\phantom{=}} \comp{((\eapp{\semD{e_1}}{\gamma}) \oplus (\eapp{\semD{e_2}}{\gamma}))}{d^{-1}} \nonumber \\
+    \semD{\ecaseof{e_0}{;}} &= \comp{\semD{e_0}}{\id_{\slashzero}}}
+\end{align}
+
+Let the hom-sets be equipped with a monoid structure $(+, 0)$. Then we define ‘impure pattern-matching’ as follows:
+\begin{gather}
+    \dfrac{\begin{array}{c}
+        \typeruled{\Gamma,\Delta'}{\Delta}{e_0}{j}{A} \\
+        \typeruled{\Gamma}{\Delta', v_1\colon A}{e_1}{j}{B} \\
+        \typeruled{\Gamma}{\Delta', v_2\colon A}{e_2}{j}{B}
+    \end{array}}{
+        \typeruled{\Gamma}{\Delta, \Delta'}{\ecaseof{e_0}{\ecase{v_1}{e_1} \ecase{v_2}{e_2}}}{j}{B}
+    }
+\end{gather}
+\begin{align}
+    \semD{\ecaseof{e_0}{\ecase{p_1}{e_1}
+                        \ecase{p_2}{e_2}}} &=
+         \elam{\gamma}{
+        \comp{\juncurry{\elam{\delta'}{\eapp{\semD{e_0}}{(\gamma, \delta')}}}}{} \\
+        & \mathrel{\phantom{=}} ((\eapp{\semD{e_1}}{\gamma}) + (\eapp{\semD{e_2}}{\gamma}))} \nonumber \\
+    \semD{\ecaseof{e_0}{;}} &= \comp{\semD{e_0}}{0}
+\end{align}
+
+\begin{lemma}
+Now let there be the following morphisms natural in $A$ and $B$: $\iota_1\colon A \to A \oplus B$, $\iota_2\colon B \to A \oplus B$, $\pi_1\colon A \oplus B \to A$, $\pi_2\colon A \oplus B \to B$. Then the following two properties are equivalent.
+\begin{lemmalist}
+    \item $\comp{\pi_1}{\iota_1} + \comp{\pi_2}{\iota_2} = \id \oplus \id$. \label{lem:plusoplus-id}
+    \item $f \oplus g = (\comp{\pi_1}{\comp{f}{\iota_1}}) + (\comp{\pi_2}{\comp{g}{\iota_2}})$ for all $f, g\colon A \to B$. \label{lem:plusoplus-main}
+\end{lemmalist}
+\end{lemma}
+\begin{proof}
+    By assumption $\iota_1\colon \Pi_1 \to \oplus$ and $\pi_1\colon \oplus \to \Pi_1$ are natural transformations with $\Pi_1\colon \C \times \D \to \C$ the projection functor of the cartesian product of categories. So the following diagram commutes (and analogously for $\pi_2$ and $\iota_2$).
+    \begin{center}
+    \begin{tikzcd}
+        A \oplus B \ar[d, "f \oplus g"] \ar[r, "\pi_1"] & A \ar[d, "f"] \ar[r, "\iota_1"] & A \oplus B \ar[d, "f \oplus g"] \\
+        A' \oplus B' \ar[r, "\pi_1"] & A' \ar[r, "\iota_1"] & A' \oplus B'
+    \end{tikzcd}
+    \end{center}
+
+    (\ref{lem:plusoplus-id} $\implies$ \ref{lem:plusoplus-main}) \begin{align}
+        f \oplus g &= \comp{(\comp{\pi_1}{\iota_1} + \comp{\pi_2}{\iota_2})}{(f \oplus g)} &&\text{(\ref{lem:plusoplus-id})} \\
+                   &= \comp{\comp{\pi_1}{\iota_1}}{(f \oplus g)} + \comp{\comp{\pi_2}{\iota_2}}{(f \oplus g)} &&\text{(naturality of monoid)} \\
+                   &= (\comp{\pi_1}{\comp{f}{\iota_1}}) + (\comp{\pi_2}{\comp{g}{\iota_2}}) &&\text{(naturality of $\iota_1, \pi_1, \iota_2, \pi_2$)}
+    \end{align}
+    
+    (\ref{lem:plusoplus-main} $\implies$ \ref{lem:plusoplus-id}) Immediately with $f = g = \id$.
+\end{proof}
+
+With $\ref{lem:plusoplus-main}$ the pure pattern-matching is exactly a special case of the impure pattern-matching if $\rev{\iota_i} = \pi_i$.
+
+\subsection{Asymmetric First-Match Policy}
+
+Let $\SetZI$ be the category of sets with two chosen elements $0$ and $\infty$ and functions that preserve $0$ and $\infty$. Note that this is isomorphic to the Kleisli-category over the monad $X+2$. Define a monoid on the hom-sets as follows:
+\begin{align}
+    (f + g)\,a &= \begin{cases}
+        f\,a \mbox{ if } g\,a = 0 \\
+        g\,a \mbox{ if } f\,a = 0 \\
+        \infty \mbox{ otherwise}
+        \end{cases} \\
+    \dot0\,a &= 0 \mbox{ if } a \neq \infty \mbox{ else } \infty \\
+    \dot\infty\,a &= \infty \mbox{ if } a \neq 0 \mbox{ else } 0
+\end{align}
+
+\begin{lemma}
+    \begin{lemmalist}
+        \item $(f + g) + h = f + (g + h)$
+        \item $f + \dot0 = f = \dot0 + f$
+        \item $f + \dot\infty = \dot\infty = \dot\infty + f$
+        \item $f + g = g + f$
+        \item $\comp{\dot0}{f} = \dot0$
+        \item $\comp{\dot\infty}{f} = \dot\infty$
+        \item $\comp{f}{\dot0} = \lambda a. \infty \mbox{ if } f\,a = \infty \mbox{ else } 0$
+        \item $\comp{f}{\dot\infty} = \lambda a. 0 \mbox{ if } f\,a = 0 \mbox{ else } \infty$
+        \item $f + f = \comp{f}{\dot\infty}$
+        \item $\comp{f}{(g + h)} = \comp{f}{g} + \comp{f}{h}$ (NEW)
+        \item $\comp{(f + g)}{h} \geq \comp{f}{h} + \comp{g}{h}$ (NEW)
+        \item $\comp{(f_{0\infty} + g_{0\infty})}{h_{0\infty}} = \comp{f_{0\infty}}{h_{0\infty}} + \comp{g_{0\infty}}{h_{0\infty}}$ with $f, g \in \Set(A, B)$ (NEW)
+    \end{lemmalist}
+\end{lemma}
+
+This monoid extends to the janus category as usual: $(\f{f}, \b{f}) + (\f{g}, \b{g}) = (\f{f} + \f{g}, \b{f} + \b{g})$.
+
+Now we define the notion of partial isomorphisms in $\mathsf{J}\SetZI$. 
+
+\begin{definition}
+A janus $f\colon A \mathrel{\js} B$ is called \textnormal{partial semi-isomorphism} if \begin{align}
+    \forall a \in A &\mid \begin{matrix}
+        \b{f}\,(\f{f}\,a) \in \{0, a, \infty\} \wedge \\
+        \b{f}\,(\f{f}\,a) = 0 \implies \f{f}\,a = 0
+        \end{matrix} \\
+\intertext{equivalently}
+    \forall a \in A &\mid \f{f}\,a \neq 0 \implies \b{f}\,(\f{f}\,a) \in \{a, \infty\}
+\end{align}
+
+A janus is called \textnormal{partial isomorphism} if both it and its reverse are partial semi-isomorphisms.
+\end{definition}
+
+\begin{lemma}
+    Let $f, g$ be partial semi-isomorphisms in $\mathsf{J}\SetZI$. Then $f + g$ is a partial semi-isomorphism.
+\end{lemma}
+\begin{proof}
+    Let $\b{(f + g)}\,(\f{(f + g)}\,a) = a'$. Then we have five possibilities. 
+    \begin{enumerate}
+        \item $a' = \infty \in \{ 0, a, \infty \}$.
+        \item $a' = \b{f}\,(\f{f}\,a) \in \{ 0, a, \infty \}$.
+        \item $a' = \b{g}\,(\f{g}\,a) \in \{ 0, a, \infty \}$.
+        \item $a' = \b{g}\,(\f{f}\,a)$, which implies $\b{f}\,(\f{f}\,a) = 0$, so $\f{f}\,a = 0$, so $a' = 0 \in \{ 0, a, \infty \}$.
+         \item $a' = \b{f}\,(\f{g}\,a)$ analogous to above.
+    \end{enumerate}
+    
+    Now assume $a' = 0$. So $\b{f}\,(\f{(f + g)}\,a) = 0$ and $\b{g}\,(\f{(f + g)}\,a) = 0$. Then we have two cases.
+    \begin{enumerate}
+        \item $\f{g}\,a = 0$. Then $\f{(f + g)}\,a = \f{f}\,a$. But because $\b{f}\,(\f{(f + g)}\,a) = 0$ we have $\f{f}\,a = 0$.
+        \item $\f{f}\,a = 0$. Analogously.
+    \end{enumerate}
+    So $\f{(f + g)}\,a = \f{f}\,a = \f{g}\,a = 0$.
+    
+    OR
+    
+    Let $\f{(f + g)}\,a \neq 0$.
+    \begin{enumerate}
+        \item $\f{f}\,a = 0 \wedge \f{g}\,a = 0$. Then $\f{(f + g)}\,a = 0$ contradicting assumption.
+        \item $\f{f}\,a \neq 0 \wedge \f{g}\,a \neq 0$. Then $\f{(f + g)}\,a = \infty$, so $\b{(f + g)}\,(\f{(f + g)}\,a) = \infty \in \{a, \infty \}$. 
+        \item $\f{f}\,a \neq 0 \wedge \f{g}\,a = 0$. Then $\f{(f + g)}\,a = \f{f}\,a$ and $\b{f}\,(\f{f}\,a) \in \{a, \infty\}$. So $\b{(f + g)}\,(\f{(f + g)}\,a) \in \{a, \infty \}$.
+        \item $\f{g}\,a \neq 0 \wedge \f{f}\,a = 0$. Analogously.
+    \end{enumerate}
+\end{proof}
+\begin{corollary}
+    Let $f, g$ be partial isomorphisms in $\mathsf{J}\SetZI$. Then $f + g$ is a partial isomorphism.
+\end{corollary}
+
+Question: Programming language with commutative case-expression/statement?
+
+Now define for every function $f\colon A \to B$ functions $\neg f, {\sim}f\colon A \to A$ as
+\begin{align}
+    \neg f\,a &= \begin{cases}
+        \infty \mbox{ if } f\,a = \infty \\
+        a \mbox{ if } f\,a = 0 \\
+        0 \mbox{ otherwise}
+    \end{cases} \\
+    {\sim}f\,a &= \begin{cases}
+        a \mbox{ if } f\,a = 0 \\
+        \infty \mbox{ otherwise}
+    \end{cases}
+\end{align} 
+and define for a janus $f\colon A \mathrel{\js} B$ januses $\neg f\colon A \mathrel{\js} A = (\neg(\f{f}), {\sim}(\f{f}))$ and ${\sim}f\colon A \mathrel{\js} A = ({\sim}(\f{f}), \neg(\f{f}))$ which are partial isomorphisms.
+
+\begin{lemma}
+    \begin{lemmalist}
+        \item $\neg (f + \comp{\neg f}{g}) = \comp{\neg f}{\neg g}$
+        \item $\comp{\neg (f + \comp{\neg f}{\comp{g}{{\sim}f'}})}{\comp{h}{{\sim}(f' + \comp{\neg f}{\comp{g'}{{\sim}f'}})}} = \comp{\comp{\neg f}{\neg g}}{\comp{h}{\comp{{\sim}g'}}{{\sim}f'}}$
+    \end{lemmalist}
+\end{lemma}
+
+Now define two new monoids on the hom-sets:
+\begin{align}
+    (f \mathrel{'+} g) &= f + \comp{\neg f}{g} \\
+    (f \mathrel{'+'} g) &= f + \comp{\neg f}{\comp{g}{{\sim}(\rev{f})}}
+\end{align}
+
+$'+'$ will never add $\infty$ and is basically the symmetric first-match policy but is defined only for $\mathsf{J}\SetZI$.
+-
+$'+$ is defined for both $\SetZI$ and $\mathsf{J}\SetZI$ and for $\SetZI$ $'+$ is basically the same as for $\SetP$. The downside is that $\rev{(f \mathrel{'+} g)} \neq \rev{f} \mathrel{'+} \rev{g}$, but another monoid $(f \mathrel{+'} g) = f + \comp{g}{\neg(\rev{f})}$.
+
+\subsection{8.9. -- Generalization}
+
+\begin{definition}
+    A \emph{case category*} is a category where 
+    \begin{itemize}
+        \item each object $A$ is a set equipped with a preorder $\leq_A$ and a monoid $(+_A, 0_A)$, and
+        \item morphisms are monotone, superadditive functions, i.e., for all $f\colon A \to B, a, a' \in A$ we have $a \leq a' \implies f\,a \leq f\,a'$ and $f\,a +_B f\,a' \leq f\,(a +_A a')$.
+    \end{itemize}
+    
+    A case category* is called \emph{increasing} if $a + a'' \leq a + a' + a''$ for all $a, a', a'' \in A$ for any object $A$.
+    
+    A case category* is called \emph{commutative} if $a + a' = a' + a$ for all $a, a' \in A$ for any object $A$.
+\end{definition}
+
+\begin{lemma}
+    In an increasing case category* 
+    \begin{itemize}
+        \item $0$ is always the smallest element and
+        \item $f\,a \leq f\,0 + f\,a + f\,0 \leq f\,a$.
+    \end{itemize}
+\end{lemma}
+\begin{proof}
+    $0 = 0 + 0 \leq 0 + a + 0 = a$.
+    
+    From increasingness and superadditivity we have
+    \[ 
+    f\,a \leq f\,0 + f\,a + f\,0 \leq f\,(0 + a + 0) = f\,a\;.
+    \]
+\end{proof}
+
+\begin{definition}
+    A pair of morphisms $(\f{f}\colon A \to B, \b{f}\colon B \to A)$ in a case category* is called a \emph{case-partial semi-isomorphism*} if
+    \[ \forall a \mid \f{f}\,a \neq 0 \implies a \leq \b{f}\,(\f{f}\,a) \;. \]
+\end{definition}
+
+\begin{lemma}
+    Case-partial semi-isomorphisms* are closed under composition.
+\end{lemma}
+\begin{proof}
+    Let $f\colon A \to B$ and $g\colon B \to C$ be case-partial semi-isomorphisms*.
+    \begin{align}
+        & \f{g}\,(\f{f}\,a) \neq 0 \\
+    \implies & \f{f}\,a \leq \b{g}\,(\f{g}\,(\f{f}\,a)) \\
+    \implies & \b{f}\,(\f{f}\,a) \leq \b{f}\,(\b{g}\,(\f{g}\,(\f{f}\,a))) \\
+    \implies & a \leq \b{f}\,(\b{g}\,(\f{g}\,(\f{f}\,a)))
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    If $f$ and $g$ are case-partial semi-isomorphisms* in an increasing case category* then so is $f \dotplus g$.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+             & (\f{f} \dotplus \f{g})\,a \neq 0 \\
+    \implies & \text{\{definition\}} \\
+             & \f{f}\,a + \f{g}\,a \neq 0 \\
+    \implies & \{ b = 0 \wedge b' = 0 \implies b + b' = 0 \} \\
+             & \f{f}\,a \neq 0 \vee \f{g}\,a \neq 0 \\
+    \implies & \text{\{$f$ and $g$ are case-partial semi-isomorphisms \}} \\
+             & a \leq \b{f}\,(\f{f}\,a) \vee a \leq \b{g}\,(\f{g}\,a) \\
+    \implies & \text{\{increasing\}} \\
+             & a \leq \b{f}\,(\f{f}\,a) + \b{f}\,(\f{g}\,a) \vee a \leq \b{g}\,(\f{f}\,a) + \b{g}\,(\f{g}\,a) \\
+    \implies & \text{\{$\b{f}$ and $\b{g}$ are superadditive\}} \\
+             & a \leq \b{f}\,(\f{f}\,a + \f{g}\,a) \vee a \leq \b{g}\,(\f{f}\,a + \f{g}\,a) \\
+    \implies & \text{\{increasing\}} \\
+             & a \leq \b{f}\,(\f{f}\,a + \f{g}\,a) + \b{g}\,(\f{f}\,a + \f{g}\,a) \vee \\
+             & a \leq \b{f}\,(\f{f}\,a + \f{g}\,a) + \b{g}\,(\f{f}\,a + \f{g}\,a) \\
+    \implies & \text{\{definition\}} \\
+             & a \leq \b{(f \dotplus g)}\,(\f{(f \dotplus g)}\,a)
+    \end{align}
+\end{proof}
+
+\begin{definition}
+    $\SetP$ is the category of pointed sets $A_* = (A, *_A)$ and functions preserving the points.
+    
+    $\SetZI$ is the category of sets with two points $A_{0\infty} = (A, 0_A, \infty_A)$ and functions preserving both points.
+    
+    $\List$ is the category of lists $A^*$ and functions that commute with list concatenation, i.e., $f\,(a + a') = f\,a + f\,a'$.
+    
+    $\PSet$ is the category of powersets $\mathcal{P}$ and continuous functions, i.e., $f\,(a \cup a') = f\,a \cup f\,a'$.
+    
+    $\PFinSet$ is the full subcategory of $\PSet$ containing only the finite sets.
+    
+    (?) $\mathcal{D}(\Set)$ is the category of finite probability distributions and continuous functions, i.e., $\mathcal{D}(A) = \{ d\colon A \to \mathbb{R}_{\geq0} \mid \{ a\colon A \mid d\,(a) \neq 0 \} \text{ is finite and non-empty} \}$ and
+    $f: \mathcal{D}(A) \to \mathcal{D}(B)$ such that $f\,(p \dotplus p') = (f\,p) \dotplus (f\,p')$.
+    
+    (?) $\mathcal{Q}(\Set)$ is the category of finite quantum distributions (???) and continuous functions, i.e., $\mathcal{Q}(A) = \{ f\colon A \to \mathbb{C} \mid \{ a\colon A \mid f\,(a) \neq 0 \} \text{ is finite and non-empty} \}$ and
+    $f: \mathcal{Q}(A) \to \mathcal{Q}(B)$ such that $f\,(p \dotplus p') = (f\,p) \dotplus (f\,p')$.
+\end{definition}
+
+\begin{lemma}
+    $\SetP$, $\SetZI$, $\List$, $\PSet$ and $\PFinSet$ are case-categories* with
+    \begin{itemize}
+        \item for $\SetP$: \begin{align}
+            \leq_{A_*} &= \{(a, *) \mid a \in A_*\} \\
+            a +_{A_*} a' &= \begin{cases}
+            a \text{ if } a \neq * \\
+            a' \text{ otherwise}
+            \end{cases}
+        \end{align}
+        \item for $\SetZI$: \begin{align}
+            \leq_{A_{0\infty}} &= \bigcup \{\{(0, a), (a, \infty)\} \mid a \in A_{0\infty}\} \\
+            a +_{A_{0\infty}} a' &= \begin{cases}
+            a \text{ if } a' = 0 \\
+            a' \text{ if } a = 0 \\
+            \infty \text{ otherwise}
+            \end{cases}
+        \end{align}
+        \item for $\List$: \begin{align}
+            \leq_{A^*} &= \{ ((a_i)_{i \in n\downarrow}, (a'_i)_{i \in n' \downarrow}) \mid \exists I \subseteq {n'\downarrow} \mid (a_i)_{i \in n\downarrow} = (a'_i)_{i \in I} \} \\
+                & \text{where } {n{\downarrow}} = \{1, \dots, n\} \\
+            +_{A^*} & \text{ is list concatenation}
+        \end{align} and 
+        \item for $\PSet$ and $\PFinSet$: ${\leq} = {\subseteq}$, ${+} = {\cup}$
+    \end{itemize}
+\end{lemma}
+\begin{proof}
+    $\SetP$, $\SetZI$, $\List$, $\PSet$ and $\PFinSet$ are categories.
+    
+    Let $f\colon A \to B$ in $\SetP$, $a \in A$, $b \in B$, $\alpha, \alpha' \in A_*$, $\beta' \in B_*$. We have the following cases.
+    \begin{center}
+    \begin{tabular}{c|c|c|c||c||ccc}
+    \hline
+    $\alpha$ & $\alpha'$ & $f\,\alpha$ & $f\,\alpha'$ & $\alpha + \alpha'$ & $f\,\alpha + f\,\alpha'$ & & $f\,(\alpha +\alpha')$ \\
+    \hline
+    $a$ & $\alpha'$ & $b$ & $\beta'$ & $a$ & $b$ & $\leq$ & $b$ \\
+    $a$ & $\alpha'$ & $*$ & $\beta'$ & $a$ & $\beta'$ & $\leq$ & $*$ \\
+    $*$ & $\alpha'$ & $*$ & $\beta'$ & $a'$ & $\beta'$ & $\leq$ & $\beta'$
+    \end{tabular}
+    \end{center}
+    
+    Let $f\colon A \to B$ in $\SetZI$, $a, a' \in A$, $\alpha' \in A_{0\infty}$, $\beta, \beta', \beta'' \in B_{0\infty}$. We have the following cases skipping
+    symmetric ones, because the monoid is commutative.
+    \begin{center}
+    \begin{tabular}{c|c|c|c||c||ccc}
+    \hline
+    $\alpha$ & $\alpha'$ & $f\,\alpha$ & $f\,\alpha'$ & $\alpha + \alpha'$ & $f\,\alpha + f\,\alpha'$ & & $f\,(\alpha +\alpha')$ \\
+    \hline
+    $a$ & $a'$ & $\beta$ & $\beta'$ & $\infty$ & $\beta''$ & $\leq$ & $\infty$ \\
+    $\infty$ & $\alpha'$ & $\infty$ & $\beta'$ & $\infty$ & $\infty$ & $\leq$ & $\infty$ \\
+    $0$ & $\alpha'$ & $0$ & $\beta'$ & $0$ & $\beta'$ & $\leq$ & $\beta'$ \\
+    \end{tabular}
+    \end{center}
+    
+    For $\List$, $\PSet$ and $\PFinSet$ we have $f\,(a + a') = (f\,a) + (f\,a')$ by definition.
+\end{proof}
+
+\begin{lemma}
+    $\SetZI$, $\PSet$ and $\PFinSet$ are increasing, commutative case-categories, $\List$ is increasing but not commutative, and $\SetP$ is neither.
+\end{lemma}
+\begin{proof}
+    For $\SetP$ we have $a + a' = a \neq a' = a' + a$ and $a' \not\leq a = a + a'$ for $a \neq a' \in A$.
+    
+     We show that $\SetZI$ is increasing and commutative by listing all cases. Let $a, a' \in A$ and $\alpha, \alpha' \in A_{0\infty}$.
+    \begin{center}
+    \begin{tabular}{c|c|c|c|c|c}
+        $\alpha'$ & $\alpha$ & & $\alpha + \alpha'$ & & $\alpha' + \alpha$ \\
+        \hline
+        a' & a & \leq & \infty & = & \infty \\
+        0 & a & \leq & a & = & a \\
+        \infty & a & \leq & \infty & = & \infty \\
+        a' & 0 & \leq & a' & = & a' \\
+        0 & 0 & \leq & 0 & = & 0 \\
+        \infty & 0 & \leq & \infty & = & \infty \\
+        a' & \infty & \leq & \infty & = & \infty \\
+        0 & \infty & \leq & \infty & = & \infty \\
+        \infty & \infty & \leq & \infty & = & \infty \\
+    \end{tabular}
+    \end{center}
+    Because of commutativity we have $\alpha + \alpha'' \leq \alpha + \alpha'' + \alpha' = \alpha + \alpha' + \alpha''$.
+    
+    For $\List$ it is easy to see that concatenation is not commutative but increasing.
+    
+    For $\PSet$ and $\PFinSet$ we have $a \cup a' = a' \cup a$, $a \subseteq a \cup a'$ for $a, a' \in \mathcal{P}(A)$, because powersets are lattices.
+\end{proof}
+
+\begin{lemma}
+    Pointwise addition $(\dotplus, \dot 0)$ and ordering $(\dotleq)$ induces a partial order and a monoid on the morphisms of a case category*. If the category is commutative rsp. increasing then so is the induced morphism structure.
+\end{lemma}
+\begin{proof}
+    $f \dotleq f \iff \forall a \mid f\,a \leq f\,a \iff \top$
+    
+    $f \dotleq g \iff \forall a \mid f\,a \leq g\,a \implies \forall a \mid g\,a \not\leq g\,a \implies f \not\dotleq g$
+    
+    $(f \dotplus g) \dotplus h = \lambda a. (f\,a + g\,a) + h\,a = \lambda a. f\,a + (g\,a + h\,a) = f \dotplus (g \dotplus h)$
+    
+    $f \dotleq g \dotleq h \iff \forall a \mid f\,a \leq g\,a \leq h\,a \implies \forall a \mid f\,a \leq h\,a \iff f \dotleq h$
+    
+    $f \dotplus \dot 0 = \lambda a. f\,a + 0 = f$
+    
+    $\dot 0 \dotplus f = \lambda a. 0 + f\,a = f$
+    
+    $f \dotplus g = \lambda a. f\,a + g\,a = \lambda a. g\,a + f\,a = g \dotplus f$
+    
+    $f = \lambda a. f\,a \dotleq \lambda a. f\,a + g\,a = f \dotplus g$
+\end{proof}
+
+\begin{lemma}
+    For a commutative case category* we have
+    \begin{gather}
+        (f \dotplus g)\,\alpha + (f \dotplus g)\,\alpha' \leq (f \dotplus g)\,(\alpha + \alpha')
+    \end{gather}
+    for all $f, g\colon A \to B$ in $\C$ and $\alpha, \alpha' \in A$.
+\end{lemma}
+\begin{proof}    
+    \begin{align}
+             & (f \dotplus g)\,\alpha + (f \dotplus g)\,\alpha' \\
+    =        & f\,\alpha + g\,\alpha + f\,\alpha' + g\,\alpha' \\
+    =        & f\,\alpha + f\,\alpha' + g\,\alpha + g\,\alpha' \\
+    \leq     & f\,(\alpha + \alpha') + g\,(\alpha + \alpha') \\
+    =        & (f \dotplus g)\,(\alpha + \alpha')
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    $\dotplus$ is closed in $\SetP$, $\SetZI$, $\PSet$ and $\PFinSet$.
+\end{lemma}
+\begin{proof}
+    Let $f, g\colon A_* \to B_*$ in $\SetP$, $a, a' \in A$, $b, b'' \in B$, $\alpha, \alpha' \in A_*$, $\beta, \beta', \beta'', \beta''' \in B_*$. 
+    \begin{gather}
+        (f \dotplus g)\,{*} = {f\,*} + {g\,*} = * + * = *
+    \end{gather}
+    \begin{center}
+    \begin{tabular}{|c|c|c|c|c|c||c|c|c|}
+        $\alpha$ & $\alpha'$ & $f\,\alpha$ & $f\,\alpha'$ & $g\,\alpha$ & $g\,\alpha'$ & $(f \dotplus g)\,\alpha + (f \dotplus g)\,\alpha' $ & & $(f \dotplus g)\,(\alpha + \alpha')$ \\
+        \hline
+        $a$ & $\alpha'$ & $b$ & $\beta'$ & $\beta''$ & $\beta'''$ & $b$ & $\leq$ & $b$ \\
+        $a$ & $a'$ & $*$ & $\beta'$ & $*$ & $\beta'''$ & $\beta'$ & $\leq$ & $*$ \\
+        $a$ & $a'$ & $*$ & $\beta'$ & $b''$ & $\beta'''$ & $b''$ & $\leq$ & $b''$ \\
+        $a$ & $*$ & $\beta$ & $*$ & $\beta''$ & $*$ & $\beta + \beta''$ & $\leq$ & $\beta + \beta''$ \\
+        $*$ & $\alpha'$ & $*$ & $\beta'$ & $*$ & $\beta'''$ & $\beta' + \beta'''$ & $\leq$ & $\beta' + \beta'''$ \\
+    \end{tabular}
+    \end{center}
+    
+    Let $f, g\colon A_{0\infty} \to B_{0\infty}$ in $\SetZI$, $a, a' \in A$, $\alpha, \alpha' \in A_{0\infty}$, $\beta, \beta', \beta'', \beta''' \in B_{0\infty}$. 
+    \begin{gather}
+        (f \dotplus g)\,{0} = {f\,0} + {g\,0} = 0 + 0 = 0 \\
+        (f \dotplus g)\,{\infty} = {f\,\infty} + {g\,\infty} = \infty + \infty = \infty
+    \end{gather}
+\end{proof}
+
+\begin{lemma}
+    $\dotplus$ is not closed in $\List$, but the following is closed and a monoid with $\dot 0$ as unit.
+    \begin{align}
+        (f +^* g) &= \lambda (a_i)_{i\in n\downarrow}. \mathsf{join}_B\,(f\,(a_i)_1 + g\,(a_i)_1)_{i\in n\downarrow} \\
+                  &= \lambda (a_i)_{i\in n\downarrow}. f\,(a_1)_1 + g\,(a_1)_1 + \dots + f\,(a_n)_1 + g\,(a_n)_1
+    \end{align}
+    where $f, g\colon A^* \to B^*$, $(a)_1$ is a singleton list and $\mathsf{join}_B\colon B^{**} \to B^*$ is the function that flattens a list of lists, i.e., the multiplication operation of the list monad.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+      & (f \dotplus g)\,a + (f \dotplus g)\,a' \\
+    = & f\,a + f\,a' + g\,a + g\,a' \\
+    \neq & f\,a + g\,a + f\,a' + g\,a' \\
+    = & (f \dotplus g)\,(a + a')
+    \end{align}
+    \begin{align}
+      & (f +^* g)\,(a_i)_{i \in n\downarrow} + (f +^* g)\,(a'_i)_{i \in n'\downarrow} \\
+    = & \mathsf{join}\,((f\,a_i, g\,a_i))_{i\in n\downarrow} + \mathsf{join}\,((f\,a'_i, g\,a'_i))_{i\in n'\downarrow} \\
+    = & \mathsf{join}\,(((f\,a_i, g\,a_i))_{i\in n\downarrow} + ((f\,a'_i, g\,a'_i))_{i\in n'\downarrow}) \\
+    = & (f +^* g)\,((a_i)_{i \in n\downarrow} + (a'_i)_{i \in n'\downarrow})
+    \end{align}
+    \begin{align}
+      & ((f +^* g) +^* h)\,(a_i)_{i \in n\downarrow} \\
+    = & \mathsf{join}\,((f +^* g)\,(a_i)_1 + h\,(a_i)_1)_{i\in n\downarrow} \\
+    = & \mathsf{join}\,(f\,(a_i)_1 + g\,(a_i)_1 + h\,(a_i)_1)_{i\in n\downarrow} \\
+    = & \mathsf{join}\,(f\,(a_i)_1 + (g +^* h)\,(a_i)_1)_{i\in n\downarrow} \\
+      & (f +^* (g +^* h))\,(a_i)_{i \in n\downarrow}
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    Case-partial semi-isomorphisms* are closed under $+^*$.
+\end{lemma}
+\begin{proof}
+    We first show that list-homomorphisms are increasing pointwise, i.e., $f +^* h \dotleq f +^* g +^* h$.
+    \begin{align}
+        & (f +^*h)\,(a_i)_{i \in n\downarrow} \\
+    =   & \text{\{definition\}} \\
+        & f\,(a_1)_1 + h\,(a_1)_1 + \dots + f\,(a_n)_1 + h\,(a_n)_1 \\
+    =   & \text{\{lists are increasing\}} \\
+        & f\,(a_1)_1 + g\,(a_1) +  h\,(a_1)_1 + \dots + f\,(a_n)_1 + g\,(a_n)_1 + h\,(a_n)_1 \\
+    =   & \text{\{definition\}} \\
+        & (f +^*g +^*h)\,(a_i)_{i \in n\downarrow}
+    \end{align}
+    
+    Then we show $g \dotleq g' \implies \comp{f}{\comp{g}{h}} \dotleq \comp{f}{\comp{g'}{h}}$.
+    \begin{align}
+        & g \dotleq g'\\
+    \iff & \text{\{definition\}} \\
+        & g\,b \leq g'\,b \\
+    \implies & \text{\{$h$ is monotone\}} \\
+        & h\,(g\,(f\,a)) \leq h\,(g'\,(f\,a)) \\
+    \iff & \text{\{definition\}} \\
+        & \comp{f}{\comp{g}{h}} \dotleq \comp{f}{\comp{g'}{h}}
+    \end{align}
+    
+    Now, because $f\,a = 0 \wedge g\,a = 0 \implies (f +^* g)\,0 = 0$ we have $(f + g)\,a \neq 0 \implies f\,a \neq 0 \vee g\,a \neq 0$. Assuming $f\,a \neq 0$ we get
+    \begin{align}
+        & a \\
+    \leq & (\comp{\f{f}}{\b{f}})\,a \\
+    \leq & (\comp{\f{f}}{(\b{f} +^* \b{g})})\,a \\
+    \leq & (\comp{(\f{f} +^* \f{g})}{(\b{f} +^* \b{g})})\,a \\
+    \end{align}
+    And analogously for $g\,a \neq 0$.
+\end{proof}
+
+\subsection{8.9. -- Generalization Categorical (WIP)}
+
+\begin{definition}
+    A \emph{case category} is a 2-category where 
+    \begin{itemize}
+        \item the hom-categories are (pseudo-)monoidal via $(+, 0)$, and
+        \item for every morphism $f\colon A \to B$ there is a morphism $\overline{f}: A \to A$, where
+        \item we write $f \leq g$ for $\exists \alpha \in \C(A, B)(f, g)$, and
+        \item we write $f \simeq g$ for $f \leq g \wedge g \leq f$
+    \end{itemize}
+    subject to the following conditions
+    \begin{gather}
+        g \leq g' \implies \comp{f}{\comp{g}{h}} \leq \comp{f}{\comp{g'}{h}} \label{equ:monotone} \\
+        f \leq f' \wedge g \leq g' \implies f + g \leq f' + g' \label{equ:plus-monotone} \\
+        \comp{f}{\comp{g}{h}} + \comp{f}{\comp{g'}{h}} \leq \comp{f}{\comp{(g + g')}{h}} \label{equ:superadditive} \\
+        f \leq g \implies \overline{f} \leq \overline{g} \\
+        \overline{f + g} \leq \overline{f} + \overline{g} \label{equ:restriction-superadditive} \\
+        f \simeq \comp{\overline{f}}{f} \\
+        \comp{\overline{f}}{\overline{g}} \simeq \comp{\overline{g}}{\overline{f}} \\
+        \comp{\overline{f}}{\overline{g}} \geq \overline{\comp{\overline{f}}{g}} \label{equ:restriction-comp} \\
+        \comp{f}{\overline{g}} \leq \comp{\overline{\comp{f}{g}}}{f} \label{equ:restriction-swap}
+    \end{gather}
+    
+    A case category is called \emph{increasing} if $f + h \leq f + g + h$.
+    
+    A case category is called \emph{commutative} if $f + g \eqsim g + f$.
+\end{definition}
+
+\begin{lemma}
+    $\overline{f} \leq \comp{f}{g} \implies \overline{\comp{f}{\overline{h}}} \leq \comp{\comp{f}{\overline{h}}}{g} \label{equ:restriction-insert}$
+\end{lemma}
+\begin{proof}
+    \begin{align}
+         & \overline{\comp{f}{\overline{h}}} \\
+    \simeq & \overline{\comp{\overline{f}}{\comp{f}{\overline{h}}}} \\
+    \leq & \comp{\overline{f}}{\overline{\comp{f}{\overline{h}}}} \\
+    \simeq & \comp{\overline{\comp{f}{\overline{h}}}}{\overline{f}} \\
+    \leq & \comp{\overline{\comp{f}{\overline{h}}}}{\comp{f}{g}} \\
+    \leq & \comp{\comp{f}{\overline{\overline{h}}}}{g} \\
+    = & \comp{\comp{f}{\overline{\comp{\overline{h}}{\id}} }}{g} \\
+    \leq & \comp{\comp{f}{\comp{\overline{h}}{\overline{\id}}}}{g} \\
+    = & \comp{\comp{f}{\comp{\overline{h}}{\comp{\overline{\id}}{\id}}}}{g} \\
+    \simeq & \comp{\comp{f}{\comp{\overline{h}}{\id}}}{g} \\
+    = & \comp{\comp{f}{\overline{h}}}{g} \\
+    \end{align}
+\end{proof}
+
+\begin{definition}
+    A case-partial semi-isomorphism is a pair of morphisms $\f{f}\colon A \to B$ and $\b{f}\colon B \to A$ in a case category such that
+    \begin{gather}
+        \overline{\f{f}} \leq \comp{\f{f}}{\b{f}}
+    \end{gather}
+\end{definition}
+\begin{lemma}
+    Case-partial semi-isomorphisms are closed under composition.
+
+    Case-partial semi-isomorphisms are closed under $+$ in increasing case-cat\-egories.
+\end{lemma}
+\begin{proof}
+    Let $\f{f}, \f{g}\colon A \to B$ and $\b{f}, \b{g}\colon B \to A$ and $(\f{f}, \b{f})$ and $(\f{g}, \b{g})$ be case-partial semi-isomorphisms.
+    \begin{align}
+         & \overline{\comp{\f{f}}{\f{g}}} \\
+    \leq & \text{\{\Cref{equ:restriction-comp}\}} \\
+         & \overline{\comp{\f{f}}{\overline{\f{g}}}} \\
+    \leq & \text{\{assumption, \Cref{equ:restriction-insert}\}} \\
+        & \comp{\f{f}}{\comp{\overline{\f{g}}}{\b{f}}} \\
+    \leq & \text{\{assumption, \Cref{equ:monotone}\}} \\
+        & \comp{\f{f}}{\comp{\comp{\f{g}}{\b{g}}}{\b{f}}}
+    \end{align}
+    So $(\comp{\f{f}}{\f{g}}, \comp{\b{g}}{\f{f}})$ is a case-partial semi-isomorphism.
+    
+    \begin{align}
+         & \overline{\f{f} + \f{g}} \\
+    \leq & \text{\{\Cref{equ:restriction-superadditive}\}}\\
+         & \overline{\f{f}} + \overline{\f{g}} \\
+    \leq & \text{\{assumption, \Cref{equ:plus-monotone}\}}\\
+         & \comp{\f{f}}{\b{f}} + \comp{\f{g}}{\b{g}} \\
+    \leq & \text{\{increasing\}}\\
+         & \comp{\f{f}}{\b{f}} + \comp{\f{f}}{\b{g}} + \comp{\f{g}}{\b{f}} + \comp{\f{g}}{\b{g}} \\
+    \leq & \text{\{\Cref{equ:superadditive}, \Cref{equ:plus-monotone}\}} \\
+         & \comp{\f{f}}{(\b{f} + \b{g})} + \comp{\f{g}}{(\b{f} + \b{g})} \\
+    \leq & \text{\{\Cref{equ:superadditive}, \Cref{equ:plus-monotone}\}} \\
+         & \comp{(\f{f} + \f{g})}{(\b{f} + \b{g})}
+    \end{align}
+    So $(\f{f} + \f{g}, \b{f} + \b{g})$ is a case-partial semi-isomorphism.
+\end{proof}
+
+\begin{definition}
+    A dagger case category is a case category that is also a dagger category such that $\rev{(f + g)} = \rev{f} + \rev{g}$.
+    
+    A $\juncurry$-situation is when a symmetric monoidal dagger case category $\D$ is enriched over a cartesian closed case category $\C$ that has a natural transformation $\juncurry[\D]: \homC{C}{\homD{A}{B}} \to \homD{\tensor{A}{C}}{\tensor{B}{C}}$, and there is a symmetric monoidal identity-on-objects functor $\f{-}\colon \D \to \C$ such that 
+    \begin{gather}
+        \f{(\juncurry[\D]\,f)} = \juncurry[\C]\,(\comp{f}{\f{-}}) = \lambda f. \lambda (a, c). (\f{(f\,c)}\,a, c) \\
+        \f{(f + g)} = \f{f} + \f{g} \\
+        f \leq g \implies \f{f} \leq \f{g}
+    \end{gather}
+\end{definition}
+
+\begin{lemma}
+    The janus category $\JC$ of a case category $\C$ is a dagger case category with
+    \begin{align}
+        f + g &= (\f{f} + \f{g}, \b{f} + \b{g}) \\
+        0 &= (0, 0) \\
+        f \leq g &\iff \f{f} \leq \f{g} \wedge \b{f} \leq \b{g}    
+    \end{align}
+\end{lemma}
+\begin{proof}
+    The monoid and partial order laws are easy to check. The dagger structure is the normal janus category one.
+    
+    \begin{align}
+      & \comp{f}{\comp{g}{h}} + \comp{f}{\comp{g'}{h}} \\
+    = & (\f{(\comp{f}{\comp{g}{h}})} + \f{(\comp{f}{\comp{g'}{h}})}, \b{(\comp{f}{\comp{g}{h}})} + \b{(\comp{f}{\comp{g'}{h}})}) \\
+    = & ((\comp{\f{f}}{\comp{\f{g}}{\f{h}}}) + (\comp{\f{f}}{\comp{\f{g'}}{\f{h}}}), (\comp{\b{h}}{\comp{\b{g}}{\b{f}}}) + (\comp{\b{h}}{\comp{\b{g'}}{\b{f}}})) \\
+    \leq & (\comp{\f{f}}{\comp{(\f{g} + \f{g'})}{\f{h}}}, \comp{\b{h}}{\comp{(\b{g} + \b{g'})}{\b{f}}}) \\
+    = & (\f{\comp{f}{\comp{(g + g')}{h}})}, \b{(\comp{f}{\comp{(g + g')}{h}})}) \\
+    = & \comp{f}{\comp{(g + g')}{h}}
+    \end{align}
+    \begin{align}
+      & 0\\
+    = & (0, 0) \\
+    \leq & (\comp{\f{f}}{\comp{0}{\f{h}}}, \comp{\comp{\b{h}}{0}}{\b{f}})  \\
+    = & \comp{f}{\comp{0}{h}}
+    \end{align}
+    \begin{align}
+      & \rev{(f + g)} \\
+    = & \rev{(\f{f} + \f{g}, \b{f} + \b{g})} \\
+    = & (\b{f} + \b{g}, \f{f} + \f{g}) \\
+    = & \rev{f} + \rev{g}
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    $\SetP$, $\SetZI$, $\List$, $\PSet$ and $\PFinSet$ are case-categories with the hom-posets and hom-monoids from the previous section and the restrictions as follows:
+    \begin{itemize}
+        \item $\SetP$: $\overline{f} = \lambda \alpha. \begin{cases}
+            * \textnormal{ if } f\,\alpha = * \\
+            \alpha \textnormal{ otherwise}
+        \end{cases}$
+        \item $\SetZI$: $\overline{f} = \lambda \alpha. \begin{cases}
+            0 \textnormal{ if } f\,\alpha = 0 \\
+            \infty \textnormal{ if } f\,\alpha = \infty \\
+            \alpha \textnormal{ otherwise}
+        \end{cases}$
+        \item $\Set^*$: $\overline{f} = \lambda (a_i)_{i\in n\downarrow}. \mathsf{join}\,((a_i)_{j \in |f\,(a_i)_1|\downarrow})_{i \in n\downarrow}$
+        \item $\PSet$, $\PFinSet$: $\overline{f} = \lambda \alpha. \{ a \in \alpha \mid f\,\{ a \} \neq \emptyset \}$
+    \end{itemize}
+\end{lemma}
+\begin{proof}
+    \begin{align}
+             & g \leq g' \\
+    \iff     & g\,b \leq g'\,b \\
+    \implies & h\,(g\,(f\,a)) \leq  h\,(g\,(f\,a)) & \text{\{$f$ and $h$ are monotone\}} \\
+    \iff     & \comp{f}{\comp{g}{h}} \leq \comp{f}{\comp{g'}{h}}
+    \end{align}
+    
+    \begin{align}
+        & f \leq f' \wedge g \leq g' \\
+    \implies &
+    \end{align}
+    
+    \begin{align}
+             & h\,c + h\,c' \leq h\,(c + c') & \text{\{$h$ superadditive\}} \\
+    \implies & h\,(g\,(f\,a)) + h\,(g'\,(f\,a)) \leq h\,(g\,(f\,a) + g'\,(f\,a))) \\
+    \implies & h\,(g\,(f\,a)) + h\,(g\,(f\,a')) \leq h\,((g \dotplus g')\,(f\,a)) & \text{\{$g$ superadditive, $h$ monotone \}} \\
+    \implies & \comp{f}{\comp{g}{h}} \dotplus \comp{f}{\comp{g'}{h}} \leq \comp{f}{\comp{(g \dotplus g')}{h}}
+    \end{align}
+    
+    $\SetP$:
+    \begin{tabular}{c|c|c||c|c|c|c|c|c}
+        $\alpha$ & $f\,\alpha$ & $g\,\alpha$ & $\overline{f}\,\alpha$ & $\overline{g}\,\alpha$ & $(f + g)\,\alpha$ & $\overline{f + g}\,\alpha$ & & $\overline{f}\,\alpha + \overline{g}\,\alpha$ \\
+        \hline
+        $a$ & $b$ & $\beta'$ & $a$ & $\alpha'$ & $b$ & $a$ & $\leq$ & $a$ \\ 
+        $a$ & $*$ & $b'$ & $*$ & $a$ & $b'$ & $a$ & $\leq$ & $a$ \\ 
+        $\alpha$ & $*$ & $*$ & $*$ & $*$ & $*$ & $*$ & $\leq$ & $*$ \\ 
+    \end{tabular}
+    
+    $\SetZI$:
+    \begin{tabular}{c|c|c||c|c|c|c|c|c}
+        $\alpha$ & $f\,\alpha$ & $g\,\alpha$ & $\overline{f}\,\alpha$ & $\overline{g}\,\alpha$ & $(f + g)\,\alpha$ & $\overline{f + g}\,\alpha$ & & $\overline{f}\,\alpha + \overline{g}\,\alpha$ \\
+        \hline
+        $a$ & $b$ & $b'$ & $a$ & $a$ & $\infty$ & $\infty$ & $\leq$ & $\infty$ \\ 
+        $a$ & $b$ & $0$ & $a$ & $0$ & $b$ & $a$ & $\leq$ & $a$ \\  
+        $\alpha$ & $\beta$ & $\infty$ & $\alpha'$ & $\infty$ & $\infty$ & $\infty$ & $\leq$ & $\infty$ \\
+        $\alpha$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $\leq$ & $0$ \\  
+    \end{tabular}
+    
+    $\Set^*$: 
+    \begin{align}
+      & \overline{f +^* g}\,(a_i)_{i \in n\downarrow} \\
+    = & \mathsf{join}\,((a_i)_{j \in |f\,(a_i)_1 + g\,(a_i)_1|\downarrow})_{i \in n\downarrow} \\
+    = & \mathsf{join}\,((a_i)_{j \in |f\,(a_i)_1|\downarrow} + ((a_i)_{j \in |g\,(a_i)_1|\downarrow})_{i \in n\downarrow} \\
+    = & (\overline{f} +^* \overline{g})\,(a_i)_{i \in n\downarrow}
+    \end{align}
+    
+    \begin{align}
+      & (\comp{f}{\comp{g}{h}} \dotplus \comp{f}{\comp{g'}{h}})\,a \\
+    = & h\,(g\,(f\,a)) + h\,(g'\,(f\,a)) \\
+    \leq & h\,(g\,(f\,a) + g'\,(f\,a)) \\
+    = & (\comp{f}{\comp{(g \dotplus g')}{h}})\,a
+    \end{align}
+    \begin{align}
+      & (\comp{f}{\comp{g}{h}} +^* \comp{f}{\comp{g'}{h}})\,(a_i)_{i \in n\downarrow} \\
+    = & \mathsf{join}_B\,((\comp{f}{\comp{g}{h}})\,(a_i)_1 + (\comp{f}{\comp{g'}{h}})\,(a_i)_1)_{i\in n\downarrow} \\
+    \leq &  \\
+    = & h\,(\mathsf{join}_B\,(g\,((f\,a)_i)_1 + g'\,((f\,a)_i)_1)_{i\in |f\,a|\downarrow}) \\
+    = & (\comp{f}{\comp{(g \dotplus g')}{h}})\,a
+    \end{align}
+\end{proof}
+\begin{lemma}
+    $\mathsf{J}\SetZI$ with the symmetric first-match policy is a case category.
+\end{lemma}
+\begin{proof}
+    The monoid structure is inherited from $\SetZI$.
+    
+    
+\end{proof}
+
+\subsection{21.10. -- Generalization (Final)}
+
+\subsubsection{Recap Restriction Categories}
+
+\begin{definition}
+    A restriction category is a category equipped with a mapping that assigns to every morphism $f\colon A \to B$ a morphism $\overline{f}\colon A \to A$ such that
+    \begin{definitionlist}
+        \item \label{def:restr-id} $\comp{\overline{f}}{f} = f$
+        \item \label{def:restr-commute} $\comp{\overline{f}}{\overline{f'}} = \comp{\overline{f'}}{\overline{f}}$ 
+        \item \label{def:restr-comp} $\overline{\comp{\overline{f}}{g}} = \comp{\overline{f}}{\overline{g}}$ 
+        \item \label{def:restr-swap} $\comp{f}{\overline{g}} = \comp{\overline{\comp{f}{g}}}{f}$
+    \end{definitionlist}
+\end{definition}
+\begin{lemma} In any restriction category we have the following.
+    \begin{lemmalist}
+        \item $\overline{\overline{f^*}} = \overline{f^*}$
+        \item \label{lem:restr-comp} $\overline{\comp{f^*}{\overline{g^*}}} = \overline{\comp{f^*}{g^*}}$
+        \item \label{lem:restr-insert} $\overline{f} = \comp{f}{g} \implies \overline{\comp{f}{\overline{h}}} = \comp{f}{\comp{\overline{h}}{g}}$
+    \end{lemmalist}    
+\end{lemma}
+\begin{proof}
+    \begin{align}
+        \overline{\overline{f}} & = \overline{\comp{\overline{f}}{\id}} \\
+            & = \comp{\overline{f}}{\overline{\id}} \\
+            & = \comp{\overline{f}}{\comp{\overline{\id}}{\id}} \\
+            & = \comp{\overline{f}}{\id} \\
+            & = \overline{f} \\
+    \end{align}
+    
+    \begin{align}
+        \overline{\comp{f}{\overline{g}}} &= \overline{\comp{\overline{\comp{f}{g}}}{f}} \\
+            &= \comp{\overline{\comp{f}{g}}}{\overline{f}} \\ 
+            &= \comp{\overline{f}}{\overline{\comp{f}{g}}} \\ 
+            &= \overline{\comp{\overline{f}}{\comp{f}{g}}} \\ 
+            &= \overline{\comp{f}{g}}
+    \end{align}
+    
+    \begin{align}
+        \overline{\comp{f}{\overline{h}}} & = \overline{\comp{\comp{\overline{f}}{f}}{\overline{h}}} \\
+            & = \comp{\overline{f}}{\overline{\comp{f}{\overline{h}}}} \\
+            & = \comp{\overline{\comp{f}{\overline{h}}}}{\overline{f}} \\
+            & = \comp{\overline{\comp{f}{\overline{h}}}}{\comp{f}{g}} \\
+            & = \comp{f}{\comp{\overline{\overline{h}}}{g}} \\
+            & = \comp{f}{\comp{\overline{h}}{g}} 
+    \end{align}
+\end{proof}
+
+\subsubsection{Case Categories and Relaxed Isomorphisms}
+
+\begin{definition} \label{def:case category}
+    A category $\C$ is called a \emph{case category} if
+    \begin{itemize}
+        \item the hom-sets are equipped with a partial order $(\leq_{\C(A, B)})$,
+        \item the hom-sets are equipped with a monoid structure $(+_{\C(A, B)}, 0_{\C(A, B)})$ and
+        \item the category is equipped with a restriction structure,
+    \end{itemize}
+    such that
+    \begin{definitionlist}
+        \item \label{def:monotone} $g \leq g' \implies \comp{f}{\comp{g}{h}} \leq \comp{f}{\comp{g'}{h}}$
+        \item \label{def:comp-restr-order} $f \leq f' \implies \overline{f} \leq \overline{f'}$
+        \item \label{def:comp-restr-monoid} $\overline{f + f'} \leq \overline{f} + \overline{f'}$ and $\overline{0_{A,B}} = 0_{A, A}$
+    \end{definitionlist}
+    
+    A case category is called \emph{stable} if \begin{definitionlist}[resume]
+    \item \label{def:stable} $f \leq f' \implies f'' + f + f''' \leq f'' + f' + f'''$ 
+    \end{definitionlist}
+    
+    A case category is called \emph{superadditive} rsp. \emph{subadditive} rsp. \emph{additive} if \begin{definitionlist}[resume]
+    \item \label{def:additive} $\comp{f}{\comp{g}{h}} + \comp{f}{\comp{g'}{h}} \leq \text{rsp.} \geq \text{rsp.} = \comp{f}{\comp{(g + g')}{h}}$ 
+    \end{definitionlist}
+    
+    A case category is called \emph{increasing} if \begin{definitionlist}[resume]
+    \item \label{def:increasing} $f + f'' \leq f + f' + f''$ 
+    \end{definitionlist}
+    
+    A case category \emph{has zero morphisms} if \begin{definitionlist}[resume]
+    \item \label{def:zero} $\comp{f}{0} = 0 = \comp{0}{f}$ 
+    \end{definitionlist}
+    
+    A \emph{case functor} is a functor between case categories that preserves partial order, monoid and restrictions.
+\end{definition}
+
+\begin{remark}
+    \ref{def:monotone} implies that case-categories are enriched over posets.
+    
+    \ref{def:comp-restr-order} implies that $\overline{\;-\;}$ is a monotone map. 
+    
+    \ref{def:comp-restr-monoid} implies that $\overline{\;-\;}$ is a lax monoid homomorphism.
+    
+    \ref{def:stable} implies that the hom-set monoids are partially ordered monoids.
+    
+    \ref{def:additive} implies that the monoid operation is a (oplax/lax) natural transformation.
+\end{remark}
+\begin{remark}
+    The partial order of $\List$ (see later) is neither the partial order induced by the restriction structure nor the Nambooripad order induced by its monoid. Neither is it based on semilattices which would allow the monoid and partial order be derived from that.
+\end{remark}
+
+!Aufsplitten:
+\begin{lemma}
+    Any category can be extended to a (trivial) case category.
+\end{lemma}
+\begin{proof}
+    Let $\C$ be any category. Define the case category $\C'$ as the following
+    \begin{itemize}
+        \item the objects of $\C'$ are the objects of $\C$,
+        \item the morphisms of $\C'$ are the morphisms of $\C$ with a new additonal zero-morphism for each hom-set,
+        \item composition the same as $\C$ with zero-morphisms always composing to zero-morphisms,
+        \item the partial order on the hom-sets is equality,
+        \item the monoid on the hom-sets is $f + f' = \begin{cases}
+            f \text{ if } f \neq 0 \\
+            f' \text{ if } f = 0
+        \end{cases}$ and $0$,
+        \item the restriction structure is given by $\overline{0} = 0$ and otherwise $\overline{f} = \id$.
+    \end{itemize}
+\end{proof}
+
+\begin{definition} \label{def:semiiso}
+    A pair of morphisms $(f, g)\colon (A \to B) \times (B \to A)$ of a case category is called 
+    \begin{definitionlist}
+        \item \label{def:total-semiiso} a \emph{total semi-isomorphism} if $\id = \comp{f}{g}$,
+        \item \label{def:supertotal-semiiso} a \emph{supertotal semi-isomorphism} if $\id \leq \comp{f}{g}$,
+        \item \label{def:partial-semiiso} a \emph{partial semi-isomorphism} if $\overline{f} = \comp{f}{g}$, and
+        \item \label{def:superpartial-semiiso} a \emph{superpartial semi-isomorphism} if $\overline{f} \leq \comp{f}{g}$.
+    \end{definitionlist}
+    
+    A total (rsp. supertotal rsp. partial rsp. superpartial) semi-isomorphism $(f, g)$ is called a \emph{total (rsp. supertotal rsp. partial rsp. superpartial) isomorphism} if also $(g, f)$ is a total (rsp. supertotal rsp. partial rsp. superpartial) semi-isomorphism.
+\end{definition}
+
+\begin{example}
+    Let the ambient category be $\List$, the category of lists (free monoids over $\Set$) and functions that commute with list concatenation ($f\,(a + a') = f\,a + f\,a'$, i.e., $f$ is additive), which is the Kleisli-category of the list monad. This can be used to model a programming language with non-determinism (or more appropriately with built-in backtracking). Now define the following pair of functions:
+    \begin{align}
+        \f{g} &\colon \{\star\}^* \to \{0, 1\}^* \\
+        \f{g}\,\enil &= \enil \\
+        \f{g}\,\econs\,(\star, r) &= \econs\,(0, \econs\,(1, \f{g}\,r)) \\
+        \b{g} &\colon \{0, 1\}^* \to \{\star\}^* \\
+        \b{g}\,\enil &= \enil \\
+        \b{g}\,\econs\,(\_, r) &= \econs\,(\star, \b{g}\,r)
+    \end{align}
+    The pair $(\f{g}, \b{g})$ is very useful as the basic building block for divergent (in the non-determinism sense) reversible (conversible?) computations, but it is neither an isomorphism nor a partial isomorphism. It is however a supertotal isomorphism which means that $(\comp{\f{g}}{\b{g}})\,x$ will contain at least the elements of $x$ in the same order and multiplicity and similarly for $\comp{\b{g}}{\f{g}}$.
+\end{example}
+
+\begin{lemma}
+    A case functor preserves all the properties pairs of \Cref{def:semiiso}.
+\end{lemma}
+\begin{proof}
+    Let $F$ be a case functor and $(f, g)$ be a superpartial semi-isomorphism.
+    \begin{align}
+        \overline{F\,f} & = F\,\overline{f} \leq F\,(\comp{f}{g}) = \comp{F\,f}{F\,g}
+    \end{align}
+    
+    Others are even easier.
+    
+    Because by definition $F$ preserves all structure in the defintion.
+\end{proof}
+
+\begin{lemma} \label{lem:semiiso-insert}
+    In a stable case category we have $\overline{f} \leq \comp{f}{g} \implies \overline{\comp{f}{\overline{h}}} \leq \comp{f}{\comp{\overline{h}}{g}}$.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+        \overline{\comp{f}{\overline{h}}} & = \overline{\comp{\comp{\overline{f}}{f}}{\overline{h}}} \\
+            & = \comp{\overline{f}}{\overline{\comp{f}{\overline{h}}}} \\
+            & = \comp{\overline{\comp{f}{\overline{h}}}}{\overline{f}} \\
+            & \leq \comp{\overline{\comp{f}{\overline{h}}}}{\comp{f}{g}} \\
+            & = \comp{f}{\comp{\overline{\overline{h}}}{g}} \\
+            & = \comp{f}{\comp{\overline{h}}{g}} 
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    If $(f, g)$ and $(f', g')$ are total rsp. supertotal rsp. partial rsp. superpartial semi-isomorphisms then so is $(\comp{f}{f'}, \comp{g'}{g})$.
+\end{lemma}
+\begin{proof}
+    Let $(f, g)$ and $(f', g')$ be total semi-isomorphisms.
+    \begin{align}
+        & \id \\
+    =   & \quad\text{\{Def. \ref{def:total-semiiso}\}} \\
+        & \comp{f}{g} \\
+    =   & \quad\text{\{$\id$\}} \\
+        & \comp{f}{\comp{\id}{g}} \\
+    =   & \quad\text{\{Def. \ref{def:total-semiiso}\}} \\
+        & \comp{\comp{f}{\comp{f'}{g'}}}{g}
+    \end{align}
+    
+    Let $(f, g)$ and $(f', g')$ be supertotal semi-isomorphisms.
+    \begin{align}
+        & \id \\
+    \leq & \quad\text{\{Def. \ref{def:supertotal-semiiso}\}} \\
+        & \comp{f}{g} \\
+    = & \quad\text{\{$\id$\}} \\
+        & \comp{f}{\comp{\id}{g}} \\
+    \leq & \quad\text{\{Def. \ref{def:supertotal-semiiso}, Def. \ref{def:monotone}\}} \\
+        & \comp{\comp{f}{\comp{f'}{g'}}}{g}
+    \end{align}
+    
+    Let $(f, g)$ and $(f', g')$ be partial semi-isomorphisms.
+    \begin{align}
+        & \overline{\comp{f}{f'}} \\
+    =   & \quad\text{\{\ref{lem:restr-comp}\}} \\
+        & \overline{\comp{f}{\overline{f'}}} \\
+    =   & \quad\text{\{Def. \ref{def:partial-semiiso}, Lemma \ref{lem:restr-insert}\}} \\
+        & \comp{\comp{f}{\overline{f'}}}{g} \\
+    =   & \quad\text{\{Def. \ref{def:partial-semiiso}\}} \\
+        & \comp{\comp{f}{\comp{f'}{g'}}}{g}
+    \end{align}
+    
+    Let $(f, g)$ and $(f', g')$ be superpartial semi-isomorphisms.
+    \begin{align}
+        & \overline{\comp{f}{f'}} \\
+    =   & \quad\text{\{\ref{lem:restr-comp}\}} \\
+        & \overline{\comp{f}{\overline{f'}}} \\
+    \leq & \quad\text{\{Def. \ref{def:superpartial-semiiso}, Lemma \ref{lem:semiiso-insert}\}} \\
+        & \comp{\comp{f}{\overline{f'}}}{g} \\
+    \leq & \quad\text{\{Def. \ref{def:superpartial-semiiso}, Def. \ref{def:monotone}\}} \\
+        & \comp{\comp{f}{\comp{f'}{g'}}}{g}
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    If $(f, g)$ and $(f', g')$ supertotal rsp. superpartial semi-isomorphisms of a stable, superadditive and increasing case category then so is $(f + f', g + g')$.
+    
+    If $(f, g)$ and $(f', g')$ total rsp. partial semi-isomorphisms of a additive and increasing case category with equality as partial order then so is $(f + f', g + g')$. 
+\end{lemma}
+\begin{proof}
+    Let $(f, g)$ and $(f', g')$ be supertotal.
+    \begin{align}
+        & \overline{f + f'} \\
+    \leq & \quad\text{\{Def. \ref{def:comp-restr-monoid}\}} \\
+        & \overline{f} + \overline{f'} \\
+    = & \quad\text{\{Def. \ref{def:supertotal-semiiso}\}} \\
+        & \comp{f}{g} + \comp{f'}{g'} \\
+    \leq & \quad\text{\{Def. \ref{def:increasing}\}} \\
+        & \comp{f}{g} + \comp{f}{g'} + \comp{f'}{g} + \comp{f'}{g'} \\
+    \leq & \quad\text{\{Def. \ref{def:stable}, Def. \ref{def:additive}\}} \\
+        & \comp{f}{(g + g')} + \comp{f'}{(g + g')} \\
+    \leq & \quad\text{\{Def. \ref{def:stable}, Def. \ref{def:additive}\}} \\
+        & \comp{(f + f')}{(g + g')}
+    \end{align}
+    
+    Let $(f, g)$ and $(f', g')$ be superpartial.
+    \begin{align}
+        & \overline{f + f'} \\
+    \leq   & \quad\text{\{Def. \ref{def:comp-restr-monoid}\}} \\
+        & \overline{f} + \overline{f'} \\
+    \leq & \quad\text{\{Def. \ref{def:superpartial-semiiso}, Def. \ref{def:stable}\}} \\
+        & \comp{f}{g} + \comp{f'}{g'} \\
+    \leq & \quad\text{\{as above\}} \\
+        & \comp{(f + f')}{(g + g')}
+    \end{align}
+    
+    For total and partial semi-isomorphisms the proofs are the same as above with $\leq$ replaced by $=$. Stableness is trivially true when the partial order is equality.
+\end{proof}
+
+\subsubsection{Recap Kleisli-triple}
+
+\begin{definition}
+    A Kleisli-triple on a category $\C$ is a triple $(T, \munit, -^*)$ where
+    \begin{itemize}
+        \item $T$ is mapping of objects of $\C$,
+        \item $\munit_A \colon A \to T\,A$ is a family of morphisms of $\C$,
+        \item $f^*\colon T\,A \to T\,B$ for $f\colon A \to T\,B$ is a mapping of morphisms of $\C$
+    \end{itemize}
+    such that
+    \begin{definitionlist}
+        \item \label{def:kleisli-eta-id} $\munit_A^* = \id_{T\,A}$
+        \item \label{def:kleisli-eta-comp} $\comp{\munit}{f^*} = f$
+        \item \label{def:kleisli-star-comp} $\comp{f^*}{g^*} = (\comp{f}{g^*})^*$
+    \end{definitionlist}
+    
+    The Kleisli-category $C_T$ of a Kleisli-triple over a category $\C$ is the subcategory of $\C$ that has only the objects 
+    of the form $T\,A$ and only the morphisms of the form $f^*$.
+\end{definition}
+
+\subsubsection{Case Monad and Examples}
+
+\begin{definition}
+    A Kleisli-triple $(T, \munit, -^*)$ on $\Set$ is called a \emph{case-monad} if
+    \begin{itemize}
+        \item all objects $T\,A$ are equipped with a partial order $\leq_{A}$,
+        \item all objects $T\,A$ are equipped with a monoid $(+_A, 0_A)$,
+        \item for every morphism $f\colon A \to T\,B$ there is a morphism $\overline{f}\colon A \to T\,A$ adhering to the restriction laws where $\overline{f^*} = \overline{f}^*$ (abusing notation)
+    \end{itemize}
+    such that for all $A$, $B$, $f\colon A \to B$
+    \begin{itemize}
+        \item $f^*$ is monotone,
+        \item the restrictions are pointwise compatible with the partial order and the monoid (see \Cref{def:case category}).
+    \end{itemize}
+    
+    A case-monad where $b \leq b' \implies a + b + c \leq a + b' + c$ is called \emph{stable}.
+    
+    A case-monad where all $f^*$ are superadditive rsp. subadditive rsp. additive is called \emph{superadditive} rsp. \emph{subadditive} rsp. \emph{additive}.
+    
+    A case-monad where $a + c \leq a + b + c$ is called \emph{increasing}.
+\end{definition}
+
+!Converse?
+\begin{lemma}
+    The properties of a case-monad $T$ extend to its Kleisli-arrows in the following ways:
+    \begin{lemmalist}
+        \item $f^* \leq_{A \to B} f'^* \iff \forall a \in A \mid f\,a \leq f'\,a$ is a partial order.
+        \item $(+_{A \to B}, 0_{A \to B})$ with $(f^* +_{A \to B} f'^*) = (\lambda a. f\,a + f'\,a)^*$ and $0_{A \to B}^* = (\lambda a. 0_B)^*$ is a monoid.
+        \item If $T$ is stable then $f^* \leq f'^* \implies f''^* + f^* + f'''^* \leq f''^* + f'^* + f'''^*$.
+        \item If $T$ is increasing then $f^* + f''^* \leq f^* + f'^* + f''^*$.
+    \end{lemmalist}
+\end{lemma}
+\begin{proof}
+    Partial order.
+    \begin{align}
+        f^* \leq f^* &\iff \forall a \in A \mid f\,a \leq f\,a \iff \top \\
+        f^* \leq f'^* \wedge f'^* \leq f''^* &\iff \forall a \in A \mid f\.a \leq f'\,a \wedge f'\.a \leq f''\,a \\
+            &\implies \forall a \in A \mid f\,a \leq f''\,a \\
+            &\iff f^* \leq f''^* \\
+        f^* \leq f'^* \wedge f'^* \leq f^* &\iff \forall a \in A \mid f\.a \leq f'\,a \wedge f'\.a \leq f\,a \\
+            &\implies \forall a \in A \mid f\,a = f'\,a \\
+            &\iff f^* = f'^*
+    \end{align}
+    
+    Monoid.
+    \begin{align}
+        f^* + 0^* &= (\lambda a. f\,a + 0)^* = f^* \\
+        0^* + f^* &= (\lambda a. 0 + f\,a)^* = f^* \\
+        (f^* + f'^*) + f''^* &= (\lambda a. f\,a + f'\,a)^* + f''^* \\
+             &= (\lambda a. (\lambda a. f\,a + f'\,a)\,a + f''\,a)^* \\
+             &= (\lambda a. (f\,a + f'\,a) + f''\,a)^* \\
+             &= (\lambda a. f\,a + (f'\,a + f''\,a))^* \\
+             &= (\lambda a. f\,a + (\lambda a. f'\,a + f''\,a)\,a)^* \\
+             &= f^* + (\lambda a. f'\,a + f''\,a)^* \\
+             &= f^* + (f'^* + f''^*)
+    \end{align}
+    
+    Monotonicity.
+    \begin{align}
+        g^* \leq g'^* & \iff \forall b \in T\,B \mid g^*\,b \leq g'^*\,b \\
+            & \implies \forall a \in T\,A \mid g^*\,(f^*\,a) \leq g'^*\,(f^*\,a) \\
+            & \implies \forall a \in T\,A \mid h^*\,(g^*\,(f^*\,a)) \leq h^*\,(g'^*\,(f^*\,a)) \\
+            & \iff \comp{f^*}{\comp{g^*}{h^*}} \leq \comp{f^*}{\comp{g'^*}{h^*}}
+    \end{align}
+    
+    Stableness.
+    \begin{align}
+        f^* \leq f'^* & \iff \forall a \in A \mid f\,a \leq f'\,a \\
+            & \implies \forall a \in A \mid f''\,a + f\,a + f'''\, \leq f''\,a + f'\,a + f'''\,a \\
+            & \iff f''^* + f^* + f'''^* \leq f''^* + f^* + f'''^*
+    \end{align}
+    
+    Increasing.
+    \begin{align}
+        f^* + f''^* & = (\lambda a. f\,a + f''\,a)^* \\
+            & \leq (\lambda a. f\,a + f'\,a + f''\,a)^* \\
+            & = f^* + f'^* + f''^*
+    \end{align}
+\end{proof}
+\begin{corollary}
+    The Kleisli-category of a case-monad is a case category. It is stable rsp. superadditive rsp. subadditive rsp. additive rsp. increasing if the case-monad is.
+\end{corollary}
+
+!Aufdröseln
+\begin{lemma} \label{lem:case-semilattice}
+    A Kleisli-triple $(T, \munit, -^*)$ such that 
+    \begin{itemize}
+        \item $T$ is a commutative monad,
+        \item $T\,A$ is a join-semilattice $(\vee)$ with least element $(\bot)$,
+        \item $f^*$ is preserves finite join for all $f$
+    \end{itemize}
+    is a stable, additive, increasing case-monad by
+    \begin{itemize}
+        \item $a + a' = a \vee a'$
+        \item $0 = \bot$
+        \item $a \leq a' \iff a \vee a' = a'$
+        \item $\overline{f^*} = \comp{\langle f, \id \rangle^*}{(\comp{\pi_2}{\munit})^*} = (\lambda a. (\lambda \_. \munit\,a)^*\,(f\,a))^*$
+    \end{itemize}
+\end{lemma}
+\begin{proof}
+    Partial order, monoid and restriction structure are well-known.
+    
+    Monotonicity:
+    \begin{align}
+        a \leq a' & \iff a' = a \vee a' \\
+                  & \implies f\,a' = f\,(a \vee a') = f\,a \vee f\,a' \\
+                  & \iff f\,a \leq f\,a'
+    \end{align}
+    
+    Stableness:
+    \begin{align}
+        b \leq b' & \iff b \vee b' = b' \\
+                  & \implies a \vee b \vee b' \vee c = a \vee b' \vee c \\
+                  & \iff (a \vee b \vee c) \vee (a \vee b' \vee c) = a \vee b' \vee c \\
+                  & \iff a + b + c \leq a + b' + c
+    \end{align}
+    
+    Compatibility of restrictions:
+    \begin{align}
+        \overline{f^* + f'^*} &= \comp{(\langle f, \id \rangle^* + \langle f', \id \rangle^*)}{(\comp{\pi_2}{\munit})^*} \\
+             &= \comp{\langle f, \id \rangle^*}{(\comp{\pi_2}{\munit})^*} + \comp{\langle f', \id \rangle^*}{(\comp{\pi_2}{\munit})^*} \\
+             &= \overline{f^*} + \overline{f'^*}
+    \end{align}
+    \begin{align}
+        f \leq f' & \iff \forall a \in A \mid f^*\,a \leq f'^*\,a \\
+            & \implies \forall a \in A \mid (\lambda b. \munit\,a)^*\,(f\,a) \leq (\lambda b. \munit\,a)^*\,(f'\,a) \\
+            & \implies \forall a \in A \mid \overline{f^*}\,a \leq \overline{f'^*}\,a \\
+            & \iff \overline{f^*} \leq \overline{f'^*}
+    \end{align}
+    
+    Increasing:
+    \begin{align}
+        a + c & = a \vee c \\
+              & \leq a \vee c \vee b \\
+              & = a \vee b \vee c \\
+              & = a + b + c
+    \end{align}
+\end{proof}
+\begin{corollary}
+    The powerset monad, the finite powerset monad, the multiset monad (with ${+} = \mathrm{max}$), \sout{the distribution monad} (no zeroes, trivial restrictions) are case-monads.
+\end{corollary}
+
+\begin{lemma}
+    $\SetP$ is a subadditive case-monad that is neither stable nor increasing.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+        f^* \leq f'^* &\iff \forall a \in A \mid f\,a \leq f'\,a \\
+            &\iff \forall a \in A \mid f\,a = 0 \vee f\,a = f'\,a \\
+            &\implies \forall a \in A \mid f\,a = 0 \vee f'\,a \neq 0 \\
+            &\iff \overline{f^*} \leq \overline{f'^*}
+    \end{align}
+    \begin{align}
+        \overline{f^* + f'^*} &= \left(\lambda a. \begin{cases}
+            a \text{ if } f\,a \neq 0 \vee f'\,a \neq 0 \\
+            0 \text{ if } f\,a = 0 \vee f'\,a = 0
+        \end{cases}\right)^* \\
+            &=\overline{f^*} + \overline{f'^*}
+    \end{align}
+    \begin{align}
+        0 \leq a &\centernot\implies 0 + 0 + a' \leq 0 + a + a'
+    \end{align}
+\end{proof}
+\begin{lemma}
+    $\SetZI$ is a stable, superadditive, increasing case-monad by 
+    \begin{align}
+        \overline{f^*} &= \left(\lambda a. \begin{cases}
+            0 \text{ if } f\,a = 0 \\
+            a \text{ if } f\,a \neq 0
+        \end{cases}\right)^*
+    \end{align}
+    and has a case product given by
+    \begin{align}
+        A \oplus B &= (A + B)_{0\infty} \\
+        f^* \oplus g^* &= [\comp{f}{(\comp{\iota_1}{\munit})^*}, \comp{g}{(\comp{\iota_2}{\munit})^*}]
+    \end{align}
+\end{lemma}
+\begin{proof}
+    Let $f, f'\colon A \to T\,B$, $g\colon A \to T\,C$, $h\colon B \to T|,C$, $m \in T\,A$, $a \in A$, $b \in B$.
+    \begin{align}
+        (\comp{\overline{f^*}}{f^*})\,m &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge f\,a = 0) \\
+            \infty \text{ if } m = \infty \vee (m = a \wedge f\,a = \infty) \\
+            b \text{ if } m = a \wedge f\,a = b
+        \end{cases} \\
+        &= f^*\,m \\
+        (\comp{\overline{f^*}}{\overline{f'^*}})\,m &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge (f\,a = 0 \vee f\,a \neq 0 \wedge f'\,a = 0) \\
+            \infty \text{ if } m = \infty \\
+            a \text{ if } m = a \wedge f\,a \neq 0 \wedge f'\,a \neq 0
+        \end{cases} \\
+        &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge (f'\,a = 0 \vee f'\,a \neq 0 \wedge f\,a = 0) \\
+            \infty \text{ if } m = \infty \\
+            a \text{ if } m = a \wedge f'\,a \neq 0 \wedge f\,a \neq 0
+        \end{cases} \\
+        &= (\comp{\overline{f'^*}}{\overline{f^*}})\,m \\
+        (\overline{\comp{\overline{f^*}}{g^*}})\,m &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge (f\,a = 0 \vee g\,a = 0)) \\
+            \infty \text{ if } m = \infty \\
+            a \text{ if } m = a \wedge f\,a \neq 0 \wedge g\,a \neq 0
+        \end{cases} \\
+        &= (\comp{\overline{f^*}}{\overline{g^*}})\,m \\
+        (\comp{f^*}{\overline{h^*}})\,m &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge (f\,a = 0 \vee (f\,a = b \wedge h\,b = 0))) \\
+            \infty \text{ if } m = \infty \vee (m = a \wedge f\,a = \infty) \\
+            b \text{ if } m = a \wedge f\,a = b \wedge h\,b \neq 0
+        \end{cases} \\
+        &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge (f\,a = 0 \vee (f\,a = b \wedge h\,b = 0) \vee f\,a = 0) \\
+            \infty \text{ if } m = \infty \vee (m = a \wedge f\,a = \infty \wedge f\,a = \infty) \\
+            b \text{ if } m = a \wedge f\,a = b \wedge h\,b \neq 0 \wedge f\,a = b
+        \end{cases} \\
+        &= (\comp{\overline{\comp{f^*}{h^*}}}{f^*})\,m
+    \end{align}
+    
+    \begin{align}
+        f^* \leq f'^* & \iff \forall a \in A \mid f\,a \leq f'\,a \\
+        & \iff \forall a \in A \mid f\,a = 0 \vee f'\,a = \infty \\
+        & \implies \forall a \in A \mid f\,a = 0 \vee f'\,a \neq 0 \\
+        & \iff \overline{f^*} \leq \overline{f'^*} \\
+        \overline{f^* + f'^*}\,m &= \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge f\,a = 0 \wedge f'\,a = 0) \\
+            \infty \text{ if } m = \infty \\
+            a \text{ if } m = \infty \vee (m = a \wedge  (f\,a \neq 0 \vee f'\,a \neq 0))
+        \end{cases} \\
+        &\leq \begin{cases}
+            0 \text{ if } m = 0 \vee (m = a \wedge f\,a = 0 \wedge f'\,a = 0) \\
+            \infty \text{ if } m = \infty \vee m = a \wedge f\,a \neq 0 \wedge f'\,a \neq 0 \\
+            a \text{ if } m = a \wedge ((f\,a \neq 0) \neq (f'\,a \neq 0))
+        \end{cases} \\
+        &= (\overline{f^*} + \overline{f'^*})\,m
+    \end{align}
+    
+    \begin{align}
+        (f^*, g^*) \leq (f'^*, g'^*) &\iff \forall a \in A \mid f\,a \leq f'\,a \wedge \forall b \in B \mid g\,b \leq g\,b \\
+            &\iff \forall x \in A + B \mid [\comp{f}{\iota_1^*}, \comp{g}{\iota_2^*}] \leq [\comp{f}{\iota_1^*}, \comp{g}{\iota_2^*}] \\
+            &\iff (f^* \oplus g^*) \leq (f'^* \oplus g^*) \\
+        (f^* + f'^*) \oplus (g^* + g'^*) &= [\comp{(f^* + f'^*)}{(\comp{\iota_1}{\munit})^*}, \comp{(g^* + g'^*)}{(\comp{\iota_2}{\munit})^*}] \\
+            & = [\comp{(\lambda a. f\,a + f'\,a)^*)}{(\comp{\iota_1}{\munit})^*}, \dots] \\
+            & = [(\comp{(\lambda a. f\,a + f'\,a)}{(\comp{\iota_1}{\munit})^*})^*, \dots] \\
+            & = (f^* \oplus g^*) + (f'^* \oplus g'^*) \\
+        \overline{f \oplus g} &= \lambda x. 0 \text{ if } [\comp{f}{(\comp{\iota_1}{\munit})^*}, \comp{g}{(\comp{\iota_2}{\munit})^*}]\,x = 0 \text{ else } \munit\,a \\
+            &= [\comp{(\lambda a. 0 \text{ if } f\,a = 0 \text{ else } \munit\,a)}{(\comp{\iota_1}{\munit})^*}, \dots] \\
+            &= \overline{f} \oplus \overline{g}
+    \end{align}
+\end{proof}
+
+\subsubsection{Case Products (WIP)}
+
+Is there a non-trivial stable, additive and increasing case categoy with a trivial (equality) partial order? Yes.
+\begin{lemma}
+    Let $\C$ be restriction category. The category $(\C \times \C)_0$ is a stable, additive and increasing case category where
+    \begin{enumerate}
+        \item the objects are the same as $\C \times \C$,
+        \item the morphisms are same as $\C \times \C$ with additional zero-morphisms, 
+        \item composition is point-wise as in $\C \times \C$ with zero-morphisms composing to zero-morphisms, 
+        \item the partial order is equality,
+        \item $(f_L, f_R) + (f'_L, f'_R) = (f_L, f'_R)$,
+        \item $(f_L, f_R) + 0 = (f_L, f_R) = 0 + (f_L, f_R)$,
+        \item $0 + 0 = 0$,
+        \item $\overline{(f_L, f_R)} = (\overline{f_L}, \overline{f_R})$,
+        \item $\overline{0} = 0$.
+    \end{enumerate}
+\end{lemma}
+\begin{proof}
+    Associativity of the monoid.
+    \begin{align}
+        (f_L, f_R) + ((f'_L, f'_R) + (f''_L, f''_R)) &= (f_L, f''_R) \\
+            &= ((f_L, f_R) + (f'_L, f'_R)) + (f''_L, f''_R)
+    \end{align}
+    Compatibility between restriction and monoid.
+    \begin{align}
+        \overline{(f_L, f_R) + (f'_L, f'_R)} &= \overline{(f_L, f'_R)} \\
+            &= (\overline{f_L}, \overline{f'_R}) \\
+            &= (\overline{f_L}, \overline{f_R}) + (\overline{f'_L}, \overline{f'_R}) \\
+            &= \overline{(f_L, f_R)} + \overline{(f'_L, f'_R)}
+    \end{align}
+    Increasingness.
+    \begin{align}
+            &\comp{(f_L, f_R)}{\comp{(g_L, g_R)}{(h_L, h_R)}} + \comp{(f_L, f_R)}{\comp{(g'_L, g'_R)}{(h_L, h_R)}} \\
+            &= (\comp{f_L}{\comp{g_L}{h_L}}, \comp{f_R}{\comp{g_R}{h_R}}) + (\comp{f_L}{\comp{g'_L}{h_L}}, \comp{f_R}{\comp{g'_R}{h_R}}) \\
+            &= (\comp{f_L}{\comp{g_L}{h_L}}, \comp{f_R}{\comp{g'_R}{h_R}}) \\
+            &= \comp{(f_L, f_R)}{\comp{(g_L, g'_R)}{(h_L, h_R)}} \\
+            &= \comp{(f_L, f_R)}{\comp{((g_L, g_R) + (g'_L, g'_R))}{(h_L, h_R)}}
+    \end{align}
+\end{proof}
+
+How to identify "useful" monoids?
+\begin{definition}
+    A tensor product $(\oplus, \emptyset, \assoc, \unitl, \unitr)$ in a case category with zero morphisms is called a \emph{case product} if
+    $\oplus$ is a case functor.
+\end{definition}
+\begin{lemma}
+    In a case category with a case product we have \[
+    f \oplus f' = \comp{\pi_1}{\comp{f}{\iota_1}} + \comp{\pi_2}{\comp{f'}{\iota_2}}
+    \] 
+    where
+    \begin{align}
+        \pi_1 &= \comp{(\id_A \oplus 0_{B, \emptyset})}{\unitr_A} & \pi_2 &= \comp{(0_{A, \emptyset} \oplus \id_B)}{\unitl_B} \\
+        \iota_1 &= \comp{\unitr_A^{-1}}{(\id_A \oplus 0_{\emptyset, B})} & \iota_2 &= \comp{\unitl_B^{-1}}{(0_{\emptyset, A} \oplus \id_B)}
+    \end{align}
+\end{lemma}
+\begin{proof}
+    The following diagram commutes, because $\oplus$ is a functor, $0$ is a zero morphism and $\unitr$ is a natural isomorphism.
+    \begin{center}
+    \begin{tikzcd}[column sep=large]
+        A \oplus B \ar[d, "f \oplus g"] \ar[r, "\id_A \oplus 0_{A, \emptyset}"] \ar[rr, "\pi_1", bend left=30] & A \oplus \emptyset \ar[d, "f \oplus 0_{\emptyset, \emptyset}"] \ar[r, "\unitr_A^{-1}"] \ar[rr, equal, bend left=30] & A \ar[d, "f"] \ar[r, "\unitr_A"] \ar[rr, "\iota_1", bend left=30] & A \oplus \emptyset \ar[d, "f \oplus 0_{\emptyset, \emptyset}"] \ar[r, "\id_A \oplus 0_{\emptyset, A}"] & A \oplus B \ar[d, "f \oplus g"] \\
+        A' \oplus B' \ar[r, "\id_{A'} \oplus 0_{A', \emptyset}"] \ar[rr, "\pi_1", bend right=30] & A' \oplus \emptyset \ar[r, "\unitr_{A'}^{-1}"] \ar[rr, equal, bend right=30] & A' \ar[r, "\unitr_{A'}"] \ar[rr, "\iota_1", bend right=30] & A' \oplus \emptyset \ar[r, "\id_{A'} \oplus 0_{\emptyset, A'}"] & A' \oplus B'
+    \end{tikzcd}
+    \end{center}
+
+    \begin{align}
+        f \oplus g &= (f + 0_{A, A'}) \oplus (0_{B, B'} + g) \\
+            &= (f \oplus 0_{B, B'}) + (0_{A, A'} \oplus g) \\
+            &= {} \mathbin{\phantom{+}} \comp{(\id_A \oplus 0_{B, \emptyset})}{(f \oplus \comp{0_{\emptyset, \emptyset})}{(\id_{A'} \oplus 0_{\emptyset, B'})}} \\
+            &\mathrel{\phantom{=}}  {} + \comp{(0_{A, \emptyset} \oplus \id_B)}{\comp{(0_{\emptyset, \emptyset} \oplus g)}{(0_{\emptyset, B'} \oplus \id_{B'})}}\\
+            &= \comp{\pi_1}{\comp{f}{\iota_1}} + \comp{\pi_2}{\comp{f'}{\iota_2}}
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    Let $T$ be a case monad on a cartesian closed category with coproduct $(- \oplus -, \emptyset, [-, -], \inj_1, \inj_2)$ such that
+    \begin{align}
+        f^* \leq f'^* \wedge g^* \leq g'^* &\iff [f, g]^* \leq [f', g']^* \\
+        [f^* + f'^*, g^* + g'^*] &= [f^*, g^*] + [f'^*, g'^*] \\
+        \overline{[f, g]^*} &= [\overline{f}, \overline{g}]^*
+    \end{align}
+    then $((T\,-) \oplus (T\,-), T\,\emptyset, (\comp{[[\inj_1, \comp{\inj_2}{\inj_1}], \comp{\inj_2}{\inj_2}]}{\munit})^*, (\comp{\inj_2}{\munit})^*, (\comp{\inj_1}{\munit})^*)$ is a case product in the Kleisli-category.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+        &(f^*, g^*) \leq (f'^*, g'^*) \\
+        \iff & f^* \leq f'^* \wedge g^* \leq g'^* \\
+        \iff & [\comp{f}{(\comp{\inj_1}{\munit})^*}, \comp{g}{(\comp{\inj_2}{\munit})^*}]^* \leq [\comp{f'}{(\comp{\inj_1}{\munit})^*}, \comp{g'}{(\comp{\inj_2}{\munit})^*}]^* \\
+        \iff & (f^* \oplus g^*) \leq f'^* \oplus g'^*)
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    The cartesian product and the coalesced sum are case products in the case category of \Cref{lem:case-semilattice} where $T=\Id$, i.e, the category of join-semilattices and semilattice homomorphisms.
+\end{lemma}
+\begin{proof}
+    Cartesian product:
+    \begin{align}
+        \pi_1 &= \comp{(\id_A \times \bot_{B, 1})}{(\lambda (a, \bot). a)} \\
+        \iota_1 &= \comp{(\lambda a. (a, \bot))}{(\id_A \times \bot_{1, B})} \\
+        \comp{\pi_1}{\iota_1} &= \comp{\comp{(\id_A \times \bot_{B, 1})}{(\id_A \times \bot_{1, 1})}}{(\id_A \times \bot_{1, B})} \\
+            &= \id_A \times \bot_{B, B} \\
+        \comp{\pi_1}{\iota_1} \sqcup \comp{\pi_2}{\iota_2} &= (\id_A \times \bot_{B, B}) \sqcup (\bot_{A, A} \times \id_B) \\
+            &= \id_A \times \id_B
+    \end{align}
+    Coalesced sum:
+    \begin{align}
+        \pi_1 &= \comp{(\id_A \oplus \bot_{B, 0})}{(\lambda \inj_1\,a. a)} \\
+        \iota_1 &= \comp{(\lambda a. \inj_1\,a)}{(\id_A \oplus \bot_{0, B})} \\
+        \comp{\pi_1}{\iota_1} &= \comp{\comp{(\id_A \oplus \bot_{B, 0})}{(\id_A \oplus \bot_{0, 0})}}{(\id_A \oplus \bot_{0, B})} \\
+            &= \id_A \oplus \bot_{B, B} \\
+        \comp{\pi_1}{\iota_1} \sqcup \comp{\pi_2}{\iota_2} &= (\id_A \oplus \bot_{B, B}) \sqcup (\bot_{A, A} \oplus \id_B) \\
+            &= \id_A \oplus \id_B
+    \end{align}
+\end{proof}
+
+\begin{lemma}
+    $\List$ is a stable, additive, increasing case-monad.
+\end{lemma}
+
+\subsection{19.11. -- Stuff}
+
+\subsubsection{Semantic category larger than categorical semantics}
+$\juncurry\colon \homC{C}{\homD{A}{B}} \to \{ f \in \homD{\tensor{A}{C}}{\tensor{B}{C}} \mid \comp{\f{f}}{\pi_2} = \pi_2 \}$ natural isomorphism. Only in category with equalizers, but category of the language wouldn't have equalizers. Categorical semantics is a functor $\sem{-}\colon \text{Language} \to \Set$, so the semantic category associated with the language is a subcategory of $\Set$.
+
+!$\sem{-}$ faithful? "no junk no confusion", "fully abstract semantics", adequacy, full abstraction
+
+!abstraction is (big-step) semantic equals denotational semantic
+
+\subsubsection{Mixing meta- and object-language in self-enriched categories}
+Assume a cartesian closed category $\C$ and a categorical semantics that maps simply typed lambda calculus to $\C$, $\sem{-}\colon \text{STLC} \to \C$. Since $\C$ is enriched over itself, the semantics are essentially an interpreter written in itself. For example the right side of
+\begin{gather}
+     \sem{\Gamma \vdash \eapp{f}{a}} = \comp{\langle \sem{a}, \sem{f} \rangle}{\eval}
+\end{gather}
+can be interpreted as an expression, $\Gamma\vdash (\comp{-}{-})\,(\sem{a}, \sem{f})$, in simply typed lambda calculus with syntactic sugar where $(\comp{-}{-})\colon \tensor{\homC{A}{B}}{\homC{B}{C}} \to \homC{A}{C}$ is a function applied to some arguments. The enrichment requires that the enrichment structure obeys the same laws as the enriched structure. For example,
+\begin{gather}
+    \comp{(\tensor{(\comp{-}{-})}{\id})}{(\comp{-}{-})} = \comp{(\tensor{\id}{(\comp{-}{-})})}{(\comp{-}{-}
+)}
+\end{gather}
+is the associativity law for composition. This can be expressed much more intuitively as
+\begin{gather}
+    \sem{f, g, h \vdash \comp{(\comp{f}{g})}{h}} = \sem{f, g, h \vdash \comp{f}{(\comp{g}{h})}}
+\end{gather}
+Is there a general law/definition where any equation in the category (the meta-language) must also be true for the object language? Is there customary notation for distinguishing meta- and object-level?
+
+\subsubsection{Yoneda}
+Does a partial order/monoid on homsets induce such a structure on objects? Yoneda?
+\[ \mathrm{Nat}(\homC{A}{-}, F) \cong F\,A \]
+$F\colon \C \to \Set$ maps object $A$ to the poset/monoid $\homC{A}{B}$ (for some fixed $B$)?
+
+\section{18.12. -- Juncurry again}
+
+\subsection{Basic assumptions and notation}
+
+\begin{itemize}
+    \item Let $\C$ be a cartesian closed category (canonically enriched over itself with internal hom-object denoted by $\homC{A}{B}$).
+    \item Let $\D$ be a dagger symmetric monoidal category enriched over $\C$ with external hom-object denoted by $\homD{A}{B}$.
+    \item Let $\f{-}\colon \D \to \C$ be an enriched symmetric monoidal identity-on-objects functor.
+    \item Denote by $(f \dot= g)\backslash A$ the set $\{a \in A \mid f\,a = g\,a\}$ (the equilizer in $\Set$, as opposed to quotient which we would like to write $A/(f {\dot=} g)$).
+    \item Denote by $\uncurry\colon \C(C, \homC{A}{B}) \cong \C(C \times A, B)$ the natural isomorphism originating from the cartesian closedness (uncurrying, as opposed to currying which we would denote $\curry$).
+\end{itemize}
+
+Now we define the following natural isomorphism \begin{gather}
+\juncurry[\C]\colon \C(C, \homC{A}{B}) \overset{\uncurry}{\cong} \C(C \times A, B) \overset{\langle \pi_1, - \rangle}{\cong} (\comp{-}{\pi_1}{\dot=}{\pi_1})\backslash\C(C \times A, C \times B)
+\end{gather}
+
+\subsection{As natural isomorphism}
+
+Now we require a similar natural isomorphism that turns a higher order $\C$ morphism to a $\D$ morphism
+\begin{gather}
+\juncurry[\D]\colon \C(C, \homD{A}{B}) \cong (\comp{\f{-}}{\pi_1}{\dot=}{\pi_1})\backslash\D(C \times A, C \times B)
+\end{gather}
+such that the $\juncurry$ commute with $\f{-}$:
+\begin{gather}
+\f{(\juncurry[\D]\,f)} = \juncurry[\C]\,(\comp{f}{\f{-}}) (= \juncurry[\C]\,\lambda c. (\f{(f\,c)})) 
+\end{gather}
+
+Problem: The natural transformation $\juncurry[\D]$ must be between two functors, let's say $\juncurry[\D]\colon F \to G\colon \op{\D} \times \D \times \op{\C} \to \Set$. The left side, $F$, is unproblematic:
+\begin{align}
+    F\,(A, B, C) &= \C(C, \homD{A}{B}) \\
+    F\,(f, g, h) &= \lambda x. \lambda c. \comp{f}{\comp{(x\,(h\,c))}{g}} \\
+                 &\text{where }f\colon \D(A', A), g\colon \D(B, B'), h\colon \C(C', C), x\colon \C(C, \homD{A}{B})
+\end{align}
+But $G$ can only be stated component-wise, which may not actually be possible in $\D$:
+\begin{align}
+    G\,(A, B, C) &= \D(C \times A, C \times B) \\
+    G\,(f, g, h) &= \lambda x. \janus{\lambda (c', a'). (c', (\f{g}\,(\pi_2\,(\f{x}\,(h\,c', \f{f}\,a')))}
+                                     {\lambda (c', b'). (c', (\b{f}\,(\pi_2\,(\b{x}\,(h\,c', \b{g}\,b')))} \\
+                 &\text{where }f\colon \D(A', A), g\colon \D(B, B'), h\colon \C(C', C), x\colon \D(C \times A, C \times B)
+\end{align}
+
+\begin{proposition}
+Let $\JCC$ be the category that has pairs $(\D, \f[\D]{-})$ as objects and as morphisms dagger symmetric monoidal functors $F\colon \D \to \D'$ such that $\f[\D]{-} = \comp{F}{\f[\D']{-}}$. $(\JC, \pi_1)$ is a terminal object in $\JCC$. 
+\end{proposition}
+
+$G$ can always be defined for $\JC$. So can we use the fact that $\JC$ is terminal, i.e., for all possible pairs $(\D, \f[\D]{-})$ for a fixed $\C$ the functor $\f[\D]{-}$ factors uniquely through $\f[\JC]{-}$. Only works if the above $F\colon \D \to \JC$ is faithful?
+
+\section{4.2.2021 -- Juncurry again, part II}https://www.overleaf.com/project/5dff6829fd699700016478ec
+
+\subsection{Basic assumptions and notation}
+
+\begin{itemize}
+    \item Let $\C$ be a cartesian closed category with internal hom-object denoted by $\homC{A}{B}$.
+    \item Denote by $\curry\colon \homC{C \times A}{B} \cong \homC{C}{\homC{A}{B}}$ the natural isomorphism originating from the cartesian closedness and denote its inverse by $\uncurry = \curry^{-1}$.
+    \item Let $(T\colon \C \to \C, \munit, -^*)$ be a Kleisli-triple. Note that $\C_T$ has a canonical $\C$-enrichment with external hom-object $\homC{A}{T\,B}$. Let $\mstrength\colon A \times T\,B \to T\,(A \times B)$ denote the canonical strength of $T$ where 
+    \begin{align}
+        t &= \lambda (a, b'). (\lambda b. \munit\,(a, b))^*\,b'
+    \end{align}
+    \item Let $\D$ be a $\C$-enriched dagger symmetric monoidal category with external hom-object denoted by $\homD{A}{B}$.
+    \item Let $\f{-}\colon \D \to \C_T$ be a $\C$-enriched symmetric monoidal identity-on-objects functor.
+    \item Let $\b{-}\colon \D \to \C_T = \f{(\rev{-})}$.
+\end{itemize}
+
+There is the following $\C$-morphism: 
+\begin{align}
+    \juncurry[\C_T] &\colon \homC{C}{\homC{A}{T\,B}} \\
+                    &\overset{\uncurry}{\cong} \homC{C \times A}{T\,B} \\
+                    &\xrightarrow{\comp{\langle \pi_1, - \rangle}{\mstrength}} \homC{C \times A}{T\,(C \times B)}
+\end{align}
+
+Question: $\times$ vs. $\otimes$?
+
+\subsection{$\juncurry[\C_T]$ as an isomorphism}
+
+Define the following morphisms:
+\begin{align}
+    p_{A,B,C} &\colon \homC{C \times A}{T\,(C \times B)} \to \homC{C \times A}{T\,(C \times B)} \\
+    %\text{(lambda calculus)}
+               &= \lambda f. \lambda (c, a). (\lambda (\_, b). (c, b))^*\,(f\,(c, a)) \\
+    % \text{(category theory)}
+    %           &= \curry\;\compr{\langle \compr{\compr{\pi_2}{\pi_1}}{(\curry\;\compr{(\id \times \pi_2)}{\munit})^*}, \eval \rangle}{\eval} \\
+    % \text{(Moggi ($f$ free))}
+    %           &= \lambda (c, a). \mathrm{let}\;(\_, b) = f\,(c, a)\;\mathrm{in}\;(c, b) \\
+    % \text{(Wadler)}
+    %           &= \lambda f. \lambda (c, a). [(c, b) \mid (\_, b) \leftarrow f\,(c, a)] \\
+    % \text{(Haskell)}
+    %           &= \lambda f. \lambda (c, a). \mathrm{do}\;(\_, b) \leftarrow f\,(c, a){;}\;\mathrm{return}\,(c, b) \\ 
+    q_{A,B,C} &\colon \homC{C \times A}{T\,(C \times B)} \to \homC{C \times A}{T\,(C \times B)} \\
+              &= \id_{\homC{C \times A}{T\,(C \times B)}}
+\end{align}
+For objects $A$, $B$, $C$ let $(\homC{C \times A}{C \times B}^{p=q}, \mathrm{eq}_{p=q}\colon \homC{C \times A}{C \times B}^{p=q} \to \homC{C \times A}{C \times A})$ denote the equilizer between $p$ and $q$ and let these equilizers always exist. For any $f\colon X \to \homC{C \times A}{C \times B}$ with $\comp{f}{p} = \comp{f}{q}$ we denote the unique morphism induced by the equilizer by $f^{p=q}\colon X \to \homC{C \times A}{C \times B}^{p=q}$.
+So for $\C = \Set$ and $T = \Id$ for example, $\homC{C \times A}{C \times B}^{p=q} = \{ f \in \homC{C \times A}{C \times B} \mid \forall (c, a) \in C \times A \bullet \pi_1\,(f\,(c, a)) = c \}$ and $\mathrm{eq}_{p=q}$ is the injection into $\homC{C \times A}{C \times B}$.
+
+Let's rewrite $\comp{\langle \pi_1, - \rangle}{\mstrength}$ as $\lambda f. \lambda (c, a). (\lambda b. \munit\,(c, b))^*\,(f\,(c, a))$ and observe that 
+\begin{align}
+   & \comp{\comp{\langle \pi_1, - \rangle}{\mstrength}}{p} \\
+ = & \lambda f. \lambda (c, a). (\lambda (\_, b). \munit\,(c, b))^*\,((\lambda b. \munit\,(c, b))^*\,(f\,(c, a))) \\
+ = & \lambda f. \lambda (c, a). (\lambda b. \munit\,(c, b))^*\,(f\,(c, a)) \\
+ = & \comp{\comp{\langle \pi_1, - \rangle}{\mstrength}}{q}
+\end{align}
+
+So $(\comp{\langle \pi_1, - \rangle}{\mstrength})^{p=q}\colon \homC{C \times A}{T\,B} \to \homC{C \times A}{T\,(C \times B)}^{p=q}$ exists.
+
+\begin{lemma}
+    $(\comp{\langle \pi_1, - \rangle}{\mstrength})^{p=q}$ is an isomorphism with inverse $\comp{\mathrm{eq}_{p=q}}{\homC{\id_{C \times A}}{\comp{\pi_2}{\munit}}}$.
+\end{lemma}
+\begin{proof}
+    \begin{align}
+        & \comp{(\comp{\langle \pi_1, - \rangle}{\mstrength})^{p=q}}{\comp{\mathrm{eq}_{p=q}}{\homC{\id_{C \times A}}{\comp{\pi_2}{\munit}}}} \\
+      = & \comp{\comp{\langle \pi_1, - \rangle}{\mstrength}}{\homC{\id_{C \times A}}{\comp{\pi_2}{\munit}}} \\
+      = & \comp{(\lambda f. \lambda (c, a). (\lambda b. \munit\,(c, b))^*\,(f\,(c, a)))}{(\lambda f. \lambda (c, a). (\lambda (\_, b). \munit\,b)^*\,(f\,(c, a)))} \\
+      = & \lambda f. \lambda (c, a). (\lambda (\_, b'). \munit\,b')^*\,((\lambda b. \munit\,(c, b))^*\,(f\,(c, a))) \\
+      = & \lambda f. \lambda (c, a). f\,(c, a) \\
+      = & \id_{\homC{C \times A}{B}}
+    \end{align}
+    
+    \begin{align}
+        & \comp{\comp{\mathrm{eq}_{p=q}}{\homC{\id_{C \times A}}{\comp{\pi_2}{\munit}}}}{(\comp{\langle \pi_1, - \rangle}{\mstrength})^{p=q}} \\
+      = & (\comp{\mathrm{eq}_{p=q}}{\comp{\homC{\id_{C \times A}}{\comp{\pi_2}{\munit}}}{\comp{\langle \pi_1, - \rangle}{\mstrength}}})^{p=q} \\
+      = & (\lambda f. \lambda (c, a). (\lambda b'. \munit\,(c, b'))^*\,(\lambda (c', b'). \munit\,b')^*\,(\mathrm{eq}_{p=q}\,f\,(c, a)))^{p=q} \\
+      = & (\lambda f. \lambda (c, a). (\lambda (c', b'). \munit\,(c, b'))^*\,(\mathrm{eq}_{p=q}\,f\,(c, a)))^{p=q} \\
+      = & (\lambda f. \lambda (c, a). (\comp{\mathrm{eq}_{p=q}}{p})\,f\,(c, a)))^{p=q} \\
+      = & (\lambda f. \lambda (c, a).\mathrm{eq}_{p=q}\,f\,(c, a))^{p=q} \\
+      = & (\mathrm{eq}_{p=q})^{p=q} \\
+      = & \id_{\homC{C \times A}{C \times B}^{p=q}}
+    \end{align}
+\end{proof}
+\begin{corollary}
+    $(\juncurry[\C_T])^{p=q} = \comp{\uncurry}{(\comp{\langle \pi_1, - \rangle}{\mstrength}})^{p=q}$ exists and is an isomorphism.
+\end{corollary}
+
+\subsection{$\juncurry[\D]$ as natural isomorphism}
+
+First we require a "double equalizer", i.e., an object and a morphism $(\homD{C \times A}{C \times B}^{p=q}, \mathrm{eq}_{p=q}\colon \homD{C \times A}{C \times B}^{p=q} \to \homD{C \times A}{C \times B})$ such that for any morphism $f\colon X \to  \homD{C \times A}{C \times B}$ such that $\comp{f}{\comp{(\f{-})}{p}} = \comp{f}{\comp{(\f{-})}{q}}$ and $\comp{f}{\comp{(\b{-})}{p}} = \comp{f}{\comp{(\b{-})}{q}}$ there is a unique morphism $f^{p=q}\colon X \to \homD{C \times A}{C \times B}^{p=q}$ such that $\comp{f^{p=q}}{\mathrm{eq}_{p=q}} = f$. That means that the following diagram commutes:
+
+\begin{tikzcd}
+    \homD{C \times A}{C \times B}^{p=q} \ar[d, "{\mathrm{eq}_{p=q}}"] & 
+    X \ar[l, dashed, swap, "f^{p=q}"] \ar[dl, "f"] \\
+    \homD{C \times A}{C \times B} \ar[d, "{\f{-}_{C \times A, C \times B}}"] \ar[dr, "{\b{-}_{C \times A, C \times B}}"] \\
+    \homC{C \times A}{T\,(C \times B)} \ar[d, shift left, "{p_{A,B,C}}"] \ar[d, shift right, swap, "{q_{A,B,C}}"] &
+    \homC{C \times B}{T\,(C \times A)} \ar[d, shift left, "{p_{B,A,C}}"] \ar[d, shift right, swap, "{q_{B,A,C}}"] \\
+    \homC{C \times A}{T\,(C \times B)} & \homC{C \times B}{T\,(C \times A)}
+\end{tikzcd}
+
+Note that such $f$ are exactly those for which both $(\f{f})^{p=q}$ and $(\b{f})^{p=q}$ exist (using the equilizer from before).
+
+Now we require a family of morphisms similar to $\juncurry[\C_T]$ that turns a higher order $\C$-morphism to a $\D$-morphism
+\begin{align}
+\juncurry[\D]_{A,B,C} &\colon \homC{C}{\homD{A}{B}} \to \homD{C \times A}{C \times B}
+\end{align}
+such that $(\juncurry[\D]_{A,B,C})^{p=q}$ exists and is an isomorphism and such that the following diagrams commute:
+
+\begin{tikzcd}[column sep=8em]
+    \homC{C}{\homD{A}{B}} \ar[d, "{\juncurry[\D]_{A,B,C}}"] \ar[r, "\homC{\id_C}{(\f{-}_{A,B})}"] & \homC{C}{\homC{A}{T\,B}} \ar[d, "{\juncurry[\C_T]_{A,B,C}}"] \\
+    {\homD{C \times A}{C \times B}} \ar[r, "(\f{-}_{C \times A, C \times B})"] & {\homC{C \times A}{T\,(C \times B)}} \\
+    \homC{C}{\homD{A}{B}} \ar[d, "{\juncurry[\D]_{A,B,C}}"] \ar[r, "\homC{\id_C}{(\rev{-}_{A,B})}"] & \homC{C}{\homD{B}{A}} \ar[d, "{\juncurry[\D]_{B,A,C}}"] \\
+    {\homD{C \times A}{C \times B}} \ar[r, "(\rev{-}_{C \times A, C \times B})"] & {\homD{C \times B}{C \times A}} 
+\end{tikzcd}
+
+\begin{lemma}
+    $(\juncurry[\D])^{p=q}$ is a natural isomorphism between the functors $F, G\colon \op{\D} \times \D \times \op{\C} \to \C$ where 
+    \begin{align}
+        F\,(A, B, C) &= \homC{C}{\homD{A}{B}} \\
+        F\,(f\colon A' \to A, g\colon B \to B', h\colon C' \to C) &= \lambda l. \lambda c'. \comp{f}{\comp{l\,(h\,c')}{g}} \\
+        G\,(A, B, C) &= \homD{C \times A}{C \times B}^{p=q} \\
+        G\,(f\colon A' \to A, g\colon B \to B', h\colon C' \to C) &= \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\comp{F\,(f, g, h)}{\juncurry[\D, p=q]_{A', B', C'}}}
+    \end{align}
+\end{lemma}
+\begin{proof}
+    Show that $F$ is a functor.
+    \begin{align}
+         & F\,(\id, \id, \id) \\
+        =& \lambda l. \lambda c'. \comp{\id}{\comp{l\,(\id\,c')}{\id}} \\
+        =& \lambda l. \lambda c'. l\,c' \\
+        =& \id \\
+         & F\,(\comp{f'}{f}, \comp{g}{g'}, \comp{h'}{h}) \\
+        =& \lambda l. \lambda c'. \comp{(\comp{f'}{f})}{\comp{l\,((\comp{h'}{h})\,c')}{(\comp{g}{g'})}} \\
+        =& \lambda l. \lambda c'. \comp{f'}{\comp{F\,(f, g, h)\,(h'\,c')}{g'}} \\
+        =& \comp{F\,(f, g, h)}{F\,(f', g', h')}
+    \end{align}
+    Show that $G$ is a functor.
+    \begin{align}
+         & G\,(\id, \id, \id) \\
+        =& \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\comp{F\,(\id, \id, \id)}{\juncurry[\D, p=q]_{A', B', C'}}} \\
+        =& \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\juncurry[\D, p=q]_{A', B', C'}} \\
+        =& \id \\
+         & G\,(\comp{f'}{f}, \comp{g}{g'}, \comp{h'}{h}) \\
+        =& \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\comp{F\,(\comp{f'}{f}, \comp{g}{g'}, \comp{h'}{h})}{\juncurry[\D, p=q]_{A'', B'', C''}}} \\
+        =& \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\comp{\comp{F\,(f, g, h)}{F\,(f', g', h')}}{\juncurry[\D, p=q]_{A'', B'', C''}}} \\
+        =& \comp{{\juncurry[\D, p=q]_{A, B, C}}^{-1}}{\comp{\comp{\comp{F\,(f, g, h)}{\comp{{\juncurry[\D, p=q]_{A', B', C'}}}{{\juncurry[\D, p=q]_{A', B', C'}}^{-1}}}}{F\,(f', g', h')}}{\juncurry[\D, p=q]_{A'', B'', C''}}} \\
+        =& \comp{G\,(f, g, h)}{G\,(f', g', h')}
+    \end{align}
+    Show naturality condition by diagram chasing.
+    
+    \begin{tikzcd}[column sep=large]
+        \homC{C}{\homD{A}{B}} \ar[r, "{F\,(f, g, h)}"] \ar[d, bend left, "{\juncurry[\D,p=q]_{A,B,C}}"] & \homC{C'}{\homD{A'}{B'}} \ar[d, "{\juncurry[\D,p=q]_{A',B',C'}}"] \\
+        \homD{C \times A}{C \times B}^{p=q} \ar[r, "{G\,(f, g, h)}"] \ar[u, bend left, "{\juncurry[\D,p=q]_{A,B,C}}^{-1}"] & \homD{C' \times A'}{C' \times B'}^{p=q}
+    \end{tikzcd}
+\end{proof}
+
+Example: The janus category $\JC_T$ for any $\C$ and any $T$ canonically has the above structure with 
+\begin{align}
+    \juncurry[\JC_T] &= \lambda f\colon \homC{C}{\homD{A}{B}}. \janus{\juncurry[\C_T]\,(\lambda c. \f{(f\,c)})}{\juncurry[\C_T]\,(\lambda c. \b{(f\,c)})} \\
+    {\juncurry[\JC_T, p=q]}^{-1} &= \lambda f\colon \homD{C \times A}{C \times B}^{p=q}. \lambda c. \janus{{\juncurry[\C_T, p=q]}^{-1}\,(\f{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}{{\juncurry[\C_T, p=q]}^{-1}\,(\b{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}
+\end{align}
+where the isomorphism $
+    \homC{C \times A}{T\,(C \times B)}^{p=q} \times \homC{C \times B}{T\,(C \times A)}^{p=q} \cong (\homC{C \times A}{T\,(C \times B)} \times \homC{C \times B}{T\,(C \times A)})^{p=q}
+    $ is implied where needed.
+
+\begin{lemma}
+    $\juncurry[\JC_T, p=q]$ is an isomorphism.
+\end{lemma}
+\begin{proof}
+
+\begin{align}
+    & \comp{\juncurry[\JC_T, p=q]}{{\juncurry[\JC_T, p=q]}^{-1}} \\
+  = & \comp{\left(\lambda f. \janus{\juncurry[\C_T, p=q]\,(\lambda c'. \f{(f\,c')})}{\juncurry[\C_T, p=q]\,(\lambda c'. \b{(f\,c')})}\right)}{\left(\lambda f. \lambda c. \janus{{\juncurry[\C_T, p=q]}^{-1}\,(\f{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}{{\juncurry[\C_T, p=q]}^{-1}\,(\b{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}\right)} \\
+  = & \lambda f. \lambda c. \janus{{\juncurry[\C_T, p=q]}^{-1}\,(\juncurry[\C_T, p=q]\,(\lambda c'. \f{(f\,c')}))\,c}{{\juncurry[\C_T, p=q]}^{-1}\,(\juncurry[\C_T, p=q]\,(\lambda c'. \b{(f\,c')}))\,c} \\
+  = & \lambda f. \lambda c. \janus{(\lambda c'. \f{(f\,c')})\,c}{(\lambda c'. \b{(f\,c')})\,c} \\
+  = & \id
+\end{align}
+
+\begin{align}
+    & \comp{{\juncurry[\JC_T, p=q]}^{-1}}{\juncurry[\JC_T, p=q]} \\
+  = & \comp{\left(\lambda f. \lambda c. \janus{{\juncurry[\C_T, p=q]}^{-1}\,(\f{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}{{\juncurry[\C_T, p=q]}^{-1}\,(\b{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c}\right)}{\left(\lambda f. \janus{\juncurry[\C_T, p=q]\,(\lambda c. \f{(f\,c)})}{\juncurry[\C_T, p=q]\,(\lambda c. \b{(f\,c)})}\right)} \\
+  = & \lambda f. \janus{\juncurry[\C_T, p=q]\,(\lambda c. {\juncurry[\C_T, p=q]}^{-1}\,(\f{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c)}{\juncurry[\C_T, p=q]\,(\lambda c. {\juncurry[\C_T, p=q]}^{-1}\,(\b{(\mathrm{eq}_{p=q}\,f)})^{p=q}\,c)} \\
+  = & \lambda f. \janus{(\f{(\mathrm{eq}_{p=q}\,f)})^{p=q}}{(\b{(\mathrm{eq}_{p=q}\,f)})^{p=q}} \\
+  = & \id
+\end{align}
+\end{proof}
+
+\begin{remark}
+    There is a canonical way to derive a ${\juncurry[\C_T]}^*\colon \homC{C}{T\,\homC{A}{T\,B}} \to \homC{C \times A}{T\,(C \times B)}$ from the above $\juncurry[\C_T]$.
+    \begin{align}
+        {\juncurry[\C_T]}^* & = \lambda f. \lambda (c, a). ((\lambda f'. \juncurry[\C_T]\,f')^*\,f\,c)\,(c, a)
+    \end{align}
+    
+    How to do this for $\D$ is an open problem. So ${\juncurry[\D]}^*\colon \homC{C}{T\,\homD{A}{B}} \to \homD{C \times A}{C \times B}$. 
+    
+    I think it is enough to have a $\mu^*\colon T\,\homD{A}{B} \to \homD{A}{B}$ which has
+    \begin{align}
+        \f{(\mu^*\,f)} &= \lambda a. (\lambda f'. \f{f'}\,a)^*\,f = \mu\,((T\,(\f{-}))\,f) \\
+        \b{(\mu^*\,f)} &= \lambda b. (\lambda f'. \b{f'}\,b)^*\,f = \mu\,((T\,(\f{-}))\,f)
+    \end{align}
+\end{remark}
+
+\subsection{As ``universal property"}
+
+Let $\D$ have a morphism $\jeval[\D]\colon \homD{A}{B} \times A \to \homD{A}{B} \times B$. Let 
+there be for each morphism $f\colon C \to \homD{A}{B}$ in $\C$ a unique morphism $\juncurry[\D]\,f\colon C \times A \to C \times B$ in $\D$ such that the following diagram commutes:
+
+\begin{tikzcd}
+    \homD{A}{B} \times A \ar[r, "\f{\jeval[\D]}"] & \homD{A}{B} \times B \\
+    C \times A \ar[u, "f \times \id_A"] \ar[r, "\f{(\juncurry[\D]\,f)}"] & C \times B \ar[u, "f \times \id_B"]
+\end{tikzcd}
+
+We also need to require
+\[
+\f{(\juncurry[\D]\,f)} = \juncurry[\C]\,(\comp{f}{\f{-}})
+\]
+
+We can draw similar diagram for $\C$ with $\jeval[\C] = \langle \pi_1, \eval[C] \rangle$ and $\juncurry[\C]\,f = \langle \pi_1, \uncurry\,f \rangle$. 
+
+\begin{tikzcd}
+    \homC{A}{B} \times A \ar[r, "{\jeval[\C]}"] & \homC{A}{B} \times B \\
+    C \times A \ar[u, "f \times \id_A"] \ar[r, "{\juncurry[\C]}\,f"] & C \times B \ar[u, "f \times \id_B"]
+\end{tikzcd}
+
+\section{24.2.2021 -- Operational semantics}
+
+\begin{itemize}
+    \item Computational soundness: $e \mapsto e' \implies \sem{e} = \sem{e'}$
+    \item Computational adequacy: $\sem{e} \neq \bot \implies \exists e' \mid e \mapsto e'$
+\end{itemize}
+
+Operational semantics for abstract monad?
+\begin{itemize}
+\item $\elet{x}{e_1}{e_2} \mapsto {?}$
+\item ${\Downarrow} \subseteq {Term} \times T\,{Value}$ ?
+\item as a monadic function written in Haskell style: \url{https://dl.acm.org/doi/pdf/10.1145/3371118?download=true}
+\end{itemize}
+
+2013 Paper Hoare Kalkül
+
+\subsection{18.3.2021}
+
+Denotational semantics given by function 
+\begin{align}
+    \sem{\typerulel{\Gamma}{-}{A}} &\colon TypedTerm \to \C(\sem{\Gamma}, T\,\sem{A})
+\end{align}
+for some suitable category $\C$ and monad $T\colon \C \to \C$.
+
+Operational (small-step) semantics given by function 
+\begin{align}
+    s &\colon TypedTerm \to T\,TypedTerm
+\end{align}
+ So the state machine has states of type $T\,TypedTerm$ and the transition function is $s^*$.
+
+Big-step semantics $S\colon TypedTerm \to (T\,TypedTerm)_\bot$ with 
+\begin{align}
+    S\,e &= (s^*)^n\,(\eta\,e)\text{ for the smallest $n \in \mathbb{N}$ such that $S\,e \in T\,Values$} \\
+         &\mathrel{\phantom{=}}\text{or $\bot$ if no such $n$ exists}
+\end{align}
+
+To show:
+\begin{align}
+    S\,e_1 = S\,e_2 \implies \sem{e_1} = \sem{e_2} \label{adequacy1} \\
+    S\,e_1 \neq S\,e_2 \implies \sem{e_1} \neq \sem{e_2} \label{adequacy2}
+\end{align}
+
+To prove \Cref{adequacy1} for non-$\bot$ values we show $(\lambda e'. \sem{e'}\,())^*\,(s\,e) = \sem{e}$.
+
+\Cref{adequacy2} is not true in general -- in particular for lambda terms. For non-function types all values must be constant symbol $c_i$. It is reasonable to require a pure function $\sem{-}_c: (c_i\colon A) \to \sem{A}$ and $\sem{c_i} = \lambda \_. \eta\,(\sem{c_i}_c)$ and $c_i \neq c_j \implies \sem{c_i}_c \neq \sem{c_j}_c$, i.e., $\sem{-}_c$ is mono. Now we only need the monad $T$ to preserve monos.
+
+NB: The category for call-by-value semantics is not cartesian, but monoidal closed. Essentially the same except that the monoidal unit is not a terminal object. (See \url{https://www.cs.ox.ac.uk/files/4551/cqm-notes.pdf} Sec. 6.4 Theorem 6.13)
+
+\subsubsection{Possible semantics}
+For irreversible language (call-by-value):
+\begin{align}
+    s\,((\lambda x. e)\,v) &= \eta\,(e[v/x]) \\
+    s\,(\elet{x}{v}{e}) &= \eta\,(e[v/x]) \\
+    s\,(\elet{()}{()}{e}) &= \eta\,(e) \\
+    s\,(\elet{(x_1, x_2)}{(v_1, v_2)}{e}) &= \eta\,(e[v_1/x_1, v_2/x_2]) \\
+    s\,(C[e]) &= (\lambda e'. \eta\,C[e'])^*\,(s\,e)
+\end{align}
+
+For reversible language additionally:
+\begin{align}
+    s\,(\rev{(\lambda x. e_2\,(e_1))}\,v) &= \eta\,(\rev{(\lambda x. e_1)}\,(\rev{e_2}\,v)) \\
+    s\,(\rev{(\lambda x. \elet{p_2}{e_1}{e_3})}\,v) &= \eta\,(\elet{p_2}{\rev{(\lambda y. e_3)}\,v}{\rev{(\lambda x. e_1)}\,p_2})
+\end{align}
+
+\section{23.4.2021 -- A construction on enriched categories with duplication and elimination}
+
+Let $\C$ be a symmetric monoidal closed category. For any symmetric monoidal $\C$-category $\D$ denote 
+\begin{itemize}
+    \item the tensor object by $\tensor[\D]{-}{-}$
+    \item the tensor unit by $I^\D$
+    \item the hom-object by $\homD{A}{B}$
+    \item the identity by $\name[\D]{\id}_A\colon I^\C \to \homD{A}{A}$
+    \item the composition by $\name[\D]{\comp{-}{-}}\colon \tensor[\C]{\homD{A}{B}}{\homD{B}{C}} \to \homD{A}{C}$
+    \item the tensor functor by $\name[\D]{\tensor{-}{-}}\colon \tensor[\C]{\homD{A}{B}}{\homD{C}{D}} \to \homD{\tensor[\D]{A}{C}}{\tensor[\D]{B}{D}}$
+\end{itemize}
+
+Now let $\D$ be a symmetric monoidal $\C$-enriched category. And let $\C$ be equipped with two families of morphisms $\dup_A\colon A \to \tensor[\C]{A}{A}$ and $\terminal_A\colon A \to I^\C$.
+
+For a $\C$-object $C$ we construct a the symmetric monoidal $\C$-category $\D^C$ as follows:
+\begin{itemize}
+    \item objects: the objects of $\D$
+    \item morphisms: $\D^C(A, B) = \C(C, \homD{A}{B})$
+    \item identity: $\id[\D^C]_A = \comp[\C]{\terminal_C}{\name[\D]{\id}_A}$
+    \item composition: $\comp[\D^C]{f}{g} = \comp[\C]{\dup_C}{\comp[\C]{(\tensor[\C]{f}{g})}{\name[\D]{\comp{-}{-}}}}$
+    \item tensor: $\tensor[\D^C]{f}{g} = \comp[\C]{\dup_C}{\comp[\C]{(\tensor[\C]{f}{g})}{\name[\D]{\tensor{-}{-}}}}$
+\end{itemize}
+
+For this to work we need the following
+\begin{align}
+    \comp{\dup_C}{(\tensor[\C]{\id_C}{\terminal_C})} &= \id_C \\
+    \comp{\dup_C}{(\tensor[\C]{\terminal_C}{\id_C})} &= \id_C \\
+    \comp{\dup_C}{(\tensor[\C]{\dup_C}{\id_C})} &= \comp{\dup_C}{(\tensor{\id_C}{\dup_C})}
+\end{align}
+i.e., $(\dup_C, \terminal_C)$ is a (not necessarily natural) monoid.
+
+Does this construction have a name?
+
+We have 
+\begin{gather}
+    \D^C(A, B) = \C(C, \homD{A}{B}) \cong \C^C(I, \homD{A}{B}) \cong \C(I, \homJ{A}{\D^C}{B})
+\end{gather}
+and similarly
+\begin{gather}
+    \C^C(A, B) = \C(C, \homC{A}{B}) \cong \C^C(I, \homC{A}{B}) \cong \C(I, \homJ{A}{\C^C}{B}) \\
+    \cong \C(\tensor{C}{A}, B)
+\end{gather}
+
+$\f{-}\colon \D \to \C$ can be extended to $\f{-}^C\colon \D^C \to \C^C$. "The proof" becomes informally the commutativity of the following diagram. \\
+\begin{tikzcd}
+    \typeruled{\Gamma}{\Delta}{e}{\D}{A} \ar[rr, "\text{implies}"] \ar[d, "\semD{-}^\D"] \ar[dr, "\semD{-}^\C"] && \typerulel{\Gamma, \Delta}{e}{A} \ar[d, "\semL{-}"] \\
+    \D^\Gamma(\Delta, A) \ar[r, "\f{-}^\Gamma"] & \C^\Gamma(\Delta, A) \ar[r, "\cong"] & \C(\tensor{\Gamma}{\Delta}, A)
+\end{tikzcd}
+
+\section{23.4.2021 -- Juncurry again, part III}
+
+Let $\juncurry[\C]$ be the mapping that maps $f\in \C(C, \homC{A}{B})$ to 
+\begin{gather}
+    \tensor{A}{C} \xrightarrow{\tensor{\id_A}{\dup_C}} \tensor{A}{\tensor{C}{C}} \xrightarrow{\tensor{\uncurry\,f}{\id_C}} \tensor{B}{C}
+\end{gather}
+
+\begin{lemma}
+    $\juncurry[\C]$ is natural in $A$ and $B$, i.e., the following commutes
+    \begin{center}
+    \begin{tikzcd}[column sep=8em]
+    \C(C, \homC{A}{B}) \ar[r, "{\C(\id_C, \homC{g}{h})}"] \ar[d, "{\juncurry[\C]}"] & \C(C, \homC{A'}{B'}) \ar[d, "{\juncurry[\C]}"] \\
+    \C(\tensor{A}{C}, \tensor{B}{C}) \ar[r, "{\C(\tensor{g}{\id_C}, \tensor{h}{\id_C})}"] & \C(\tensor{A'}{C}, \tensor{B'}{C})
+    \end{tikzcd}
+    \end{center}
+\end{lemma}
+\begin{proof}
+    Let $g\colon A' \to A$, $h\colon B \to B'$.
+    \begin{align}
+        & \juncurry\,(\comp{f}{\homC{g}{h}}) \\
+      = & \comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\uncurry\,(\comp{f}{\homC{g}{h})}}{\id_C})} \\
+      = & \comp{(\tensor{\id_A}{\dup_C})}{(\tensor{(\comp{(\tensor{g}{\id_C})}{\comp{\uncurry\,f}{h}})}{\id_C})} \\
+      = & \comp{(\tensor{g}{\id_C})}{\comp{\juncurry[\C]\,f}{(\tensor{h}{\id_C})}}
+    \end{align}
+\end{proof}
+
+The following lemma requires $\dup$ to be a natural transformation.
+
+\begin{lemma}
+    $\juncurry[\C]$ is dinatural in $C$, i.e., the following commutes
+    \begin{center}
+    \begin{tikzcd}
+    & \C(C, \homC{A}{B}) \ar[rd, "{\C(g, \homC{\id_A}{\id_B})}"] \ar[dl, equals] \\
+    \C(C, \homC{A}{B}) \ar[d, swap, "{\juncurry[\C]}"] & &
+    \C(C', \homC{A}{B}) \ar[d, "{\juncurry[\C]}"] \\
+    \C(\tensor{A}{C}, \tensor{B}{C}) \ar[dr, swap, "{\C(\tensor{\id_A}{g}, \tensor{id_B}{\id_C})}"] & &
+    \C(\tensor{A}{C'}, \tensor{B}{C'}) \ar[dl, "{\C(\tensor{\id_A}{\id_C}, \tensor{id_B}{g})}"] \\
+    & \C(\tensor{A}{C'}, \tensor{B}{C})
+    \end{tikzcd}
+    \end{center}
+\end{lemma}
+\begin{proof}
+    The dinaturality is between the two functors
+    \begin{align}
+        F_{A,B}(C, C') &= \C(C, \homC{A}{B}) \\
+        F_{A.B}(g, g') &= \C(g, \id_{\homC{A}{B}}) \\
+        G_{A,B}(C, C') &= \C(\tensor{A}{C}, \tensor{B}{C'}) \\
+        G_{A,B}(g, g') &= \C(\tensor{\id_A}{g}, \tensor{\id_B}{g'})
+    \end{align}
+    
+    \begin{align}
+        & \comp{\juncurry[\C]\,(\comp{g}{f})}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{\uncurry\,(\comp{g}{f})}}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{(\comp{(\tensor{\id_A}{g})}{\uncurry\,f})}}{(\tensor{\id_B}{g})} \\
+      = & \comp{\comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\id_A}{\tensor{g}{g}})}}{(\tensor{\uncurry\,f}{\id_C})} \\
+      = & \comp{(\tensor{\id_A}{g})}{\comp{(\tensor{\id_A}{\dup_C})}{(\tensor{\uncurry\,f}{\id_C})}} \\
+      = & \comp{(\tensor{\id_A}{g})}{\juncurry\,f}
+    \end{align}
+\end{proof}
+
+What we require of $(\dup, \terminal)$?
+\begin{align}
+    A \xrightarrow{\dup_A} \tensor{A}{A} \xrightarrow{\swap_A} \tensor{A}{A} &= A \xrightarrow{\dup_A} \tensor{A}{A} \\
+    A \xrightarrow{\dup_A} \tensor{A}{A} \xrightarrow{(\tensor{\id_A}{\terminal_A})} A &= A \xrightarrow{\id_A} A \\
+    A \xrightarrow{f} B \xrightarrow{\dup_B} \tensor{B}{B} &= A \xrightarrow{\dup_A} \tensor{B}{B} \xrightarrow{\tensor{f}{f}} \tensor{B}{B} \\
+    \tensor{A}{B} \xrightarrow{\tensor{\terminal_A}{\terminal_B}} \tensor{I}{I} \xrightarrow{\cong} I &= \tensor{A}{B} \xrightarrow{\terminal_{\tensor{A}{B}}} I \\
+    I \xrightarrow{\terminal_I} I &= I \xrightarrow{\id_I} I
+\end{align}
+
+\section{Universally and existentially quantified types}
+\subsection{10.2.}
+
+For syntactic sugar like $\sugar{\eifthenelse{e_1}{e_2}{e_3}} = \eapp{\eapp{\eapp{\select}{\epair{\elam{\eunit}{e_2}}{\elam{\eunit}{e_3}}}}{e_1}}{\eunit}$ does $\select$ need to have the type $\forall A. A \times A \to \homC{2}{A}$ or is there a way around it?
+
+\section{Implementation}
+
+\subsection{10.2.}
+
+Functional language (System F) implemented in Haskell : \url{https://github.com/stefanbohne/reversible}
+
+Other idea: Template Haskell. Convert 
+
+\texttt{[| \textbackslash(a, b) -> let s = a + b; d = b * (-2) + s in (s, d) |]} 
+
+into a pair of functions:
+
+\texttt{\textbackslash(a, b) -> let s = a + b; d = b * (-2) + s in (s, d)} and
+
+\texttt{\textbackslash(s, d) -> let b = (d - s) / (-2); a = s - b in (a, b)}
+
+or: turn it into a point-free form which can already be handled by libraries.Other (minor) problem: case can fail in expression as well as pattern. Not typically how functional languages work.
+
+
+
+\section{Lenses}
+
+\begin{lemma} \label{lem:lensex-is-lens}
+    Existentially quantified pairs of inverse morphisms $\exists R. (A \to B \times R) \times (B \times R \to A)$ are isomorphic to well-behaved lenses between $A$ and $B$.
+\end{lemma}
+
+\begin{lemma} \label{lem:lensex-is-category}
+    Morphism pairs of the form $\exists R. (A \to B \times R) \times (B \times R \to A)$ form a symmetric monoidal category.
+\end{lemma}
+\begin{proof}
+    Composition is given by a morphism in the janus category \begin{align*}
+        \comp{-}{-} &= \semD{\evar{f}, \evar{g}; \evar{a} \vdash \elet{\epair{\evar{b}}{\evar{rf}}}{\eapp{\evar{f}}{\evar{a}}}{\elet{\epair{\evar{c}}{\evar{rg}}}{\eapp{\evar{g}}{\evar{b}}}{\epair{\evar{c}}{\epair{\evar{rf}}{\evar{rg}}}}}} \\
+        &= \lambda (f, g). \comp[\JC]{f}{(\tensor[\JC]{g}{\id})} \\
+        &= \lambda (f, g). \janus{
+            \lambda a. \nlet{(b, r_f)}{\f{f}\,a}{\nlet{(c, r_g)}{\f{g}\,b}{(c, (r_f, r_g))}}}{
+            \lambda (c, (r_f, r_g)). \b{f}\,(\b{g}\,(c, r_g), r_f)}
+    \end{align*} so $R_{\comp{f}{g}} = \tensor{R_f}{R_g}$. Associativity is proven by associativity of $\comp{-}{-}$ and $\tensor{-}{-}$.
+    
+    For isomorphisms in $\C$ we find that we can set $R = I$. So the identities and the symmetric monoidal structure is isomorphic to that in $\JC$.
+\end{proof}
+
+
+\end{document}
+

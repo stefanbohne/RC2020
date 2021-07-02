@@ -1,0 +1,157 @@
+\documentclass[runningheads,envcountsame]{llncs}
+%
+\usepackage[utf8]{inputenc}
+\usepackage[normalem]{ulem}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,hyperref,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx,ulem,tikz-cd,centernot}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in, top=0.4in]{geometry}
+\usepackage{xcolor}
+
+\renewcommand{\labelitemi}{\textbullet}
+
+\begin{document}
+
+\include{definitions}
+
+\begin{figure}
+    \begin{align}
+        X &::= \text{variables} \\
+        C &::= \text{constants} \\
+        E &::= X \mid C \mid \eapp{E}{E} \mid \elam{X}{E} \mid \elet{P}{E}{E} \mid \epair{E}{E} \\
+        P &::= X \mid C \mid \epair{P}{P} \\
+        S &::= [] \mid [X/E, S] \text{ (subsitutions)}
+    \end{align}
+    \caption{Syntax of STLC}
+\end{figure}
+
+\begin{figure}
+    \begin{align}
+        X &::= \text{variables} \\
+        C &::= \text{constants} \\
+        E &::= X \mid C \mid \eapp{E}{E} \mid \elam{X}{E} \mid \elet{E}{E}{E} \mid \epair{E}{E} \mid \eunit
+    \end{align}
+    \caption{Syntax of Emordnilap}
+\end{figure}
+
+\begin{lemma}
+    Syntactically Emordnilap is a superset of STLC.
+\end{lemma}
+
+Operational semantics are given by small step semantics for expressions ($E \mapsto E$) and patterns ($P / E \mapsto S$).
+
+\begin{figure}
+    \begin{gather}
+        \eapp{(\elam{x}{e_2})}{e_1} \mapsto \elet{x}{e_1}{e_2} \\
+        \elet{x}{e_1}{e_2} \mapsto \subst{x}{e_1}{e_2} \\
+        \elet{(p_1, p_2)}{(e_1, e_2)}{e_3} \mapsto \begin{array}{l}
+            \elet{y_1}{e_1}{\elet{y_2}{e_2}{}}\\
+            \elet{p_1}{y_1}{\elet{p_2}{y_2}{e_3}}\\            
+        \end{array} \text{ with $y_1$, $y_2$ fresh}\\
+        \elet{\eunit}{e_1}{e_2} \mapsto e_2
+    \end{gather}
+    \caption{Small step semantics of STLC}
+\end{figure}
+    
+\begin{figure}
+    \begin{gather}
+        \dfrac{e_2 \Downarrow \elam{x}{e_2'} \qquad \subst{x}{e_1}{e_2'} \Downarrow v}
+              {\eapp{e_2}{e_1} \Downarrow v} \\
+        \dfrac{\subst{x}{e_1}{e_2} \Downarrow v}
+              {\elet{x}{e_1}{e_2} \Downarrow v}
+        \dfrac{}
+              {\elet{\epair{p_1}{p_2}}{e_1}{e_2} \Downarrow v}
+    \end{gather}
+    \caption{Small step semantics of STLC}
+\end{figure}
+    
+\begin{figure}
+    \centering
+    {\def\arraystretch{1.5}
+    \begin{tabular}{l|l c l}
+        \hline
+        Name & Typing (Expressions) & & Semantics ($\semL{-}$)
+        \\ \hline\hline
+          \textsc{Const} 
+        & $\typerulel{\Gamma}{c_i}{\tau_{c_i}}$
+        & = & $\comp{\terminal_{\sem{\Gamma}}}{\sem{c_i}} \qquad \text{where $\sem{c_i}\colon I \to \sem{\tau_{c_i}}$}$
+        \\ \hline
+          \textsc{Var}
+        & $\typerulel{v_1\colon \tau_1, \dots, v_n\colon \tau_n}{v_i}{\tau_i}$
+        & = & $\tensor{\terminal_{\sem{\tpair{\tau_1}{\tpair{\dots}{\tau_{i-1}}}}}}{\tensor{\id_{\sem{\tau_i}}}{\terminal_{\sem{\tpair{\tau_{i+1}}{\tpair{\dots}{\tau_n}}}}}}$
+        \\ \hline
+          \textsc{Unit} 
+        & $\typerulel{\Gamma}{\eunit}{\tunit}$
+        & = & $\terminal_{\sem{\Gamma}}$
+        \\ \hline
+          \multirow{3}{*}{\textsc{Tup}}
+        & $\typerulel{\Gamma}{e_1}{\tau_1}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{\tau_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\epair{e_1}{e_2}}{\tpair{\tau_1}{\tau_2}}$
+        & = & $\comp{\dup}{(\tensor{g_1}{g_2})}$
+        \\ \hline
+          \multirow{3}{*}{$\textsc{App}_{\fun}$}
+        & $\typerulel{\Gamma}{e_1}{\tfun{\tau_1}{\tau_2}}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{\tau_1}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\eapp{e_1}{e_2}}{\tau_2}$
+        & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_2}{\id_{\sem{\Gamma}}})}}{\uncurry\,g_1}$
+        \\ \hline
+          \multirow{3}{*}{$\textsc{App}_{\js}$}
+        & $\typerulel{\Gamma}{e_1}{\tjs{\tau_1}{\tau_2}}$
+        & = & $g_1$ \\
+        & $\typerulel{\Gamma}{e_2}{\tau_1}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\eapp{e_1}{e_2}}{\tau_2}$
+        & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{g_2}{\id_{\sem{\Gamma}}})}}{\uncurry\,(\f{g_1})}$
+        \\ \hline
+          \multirow{2}{*}{\textsc{Lam}}
+        & $\typerulel{\Gamma, v\colon \tau_1}{e}{\tau_2}$
+        & = & $g$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\elam{v}{e}}{\tfun{\tau_1}{\tau_2}}$
+        & = & $\curry\,g$
+        \\ \hline
+          \multirow{3}{*}{\textsc{Let}}
+        & $\typerulel{\Gamma}{e_1}{\tau_1}$
+        & = & $g_1$ \\
+        & $\typerulelp{\Delta}{p_2}{\tau_1}$
+        & = & $g_2$ \\
+        & $\typerulel{\Gamma,\Delta}{e_3}{\tau_3}$
+        & = & $g_3$ \\ \cline{2-2}
+        & $\typerulel{\Gamma}{\elet{p_2}{e_1}{e_3}}{\tau_3}$
+        & = & $\comp{\comp{\dup_{\sem{\Gamma}}}{(\tensor{\id_{\sem{\Gamma}}}{(\comp{g_1}{g_2})})}}{g_3}$
+        \\ \hline \hline
+        Name & Typing (Patterns) & & Semantics ($\semLP{-}$) \\ \hline
+          \textsc{VarP}
+        & $\typerulelp{v\colon \tau}{v}{\tau}$
+        & = & $\id_{\sem{\tau}}$ 
+        \\ \hline
+          \textsc{UnitP}
+        & $\typerulelp{\emptyset}{\eunit}{\tunit}$
+        & = & $\id_{\sem{\tunit}}$ 
+        \\ \hline
+          \multirow{3}{*}{\textsc{TupP}}
+        & $\typerulelp{\Delta_1}{p_1}{\tau_1}$
+        & = & $g_1$ \\
+        & $\typerulelp{\Delta_2}{p_2}{\tau_2}$
+        & = & $g_2$ \\ \cline{2-2}
+        & $\typerulelp{\Delta_1, \Delta_2}{\epair{p_1}{p_2}}{\tpair{\tau_1}{\tau_2}}$
+        & = & $\tensor{g_1}{g_2}$ 
+        \\ \hline
+    \end{tabular}}
+    \caption{categorical semantics of STLC}
+    \label{fig:semantics1}
+\end{figure}
+
+\begin{lemma}
+    If $e_1 \mapsto e_2$ then $\semL{e_1} = \semL{e_2}$.
+\end{lemma}
+\begin{proof}
+    
+\end{proof}
+\begin{lemma}
+    If $\semL{e_1} = \semL{e_2}$ then $e_1 \Downarrow v_1$, $e_2 \Downarrow v_2$ and $v_1 = v_2$.
+\end{lemma}
+
+\end{document}

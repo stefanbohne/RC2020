@@ -1,0 +1,27 @@
+\documentclass{llncs}
+
+\usepackage[utf8]{inputenc}
+\usepackage{pdflscape}
+\usepackage{thmtools,amssymb,stmaryrd,mathtools,listings,hyphenat,ifthen,hyperref,cleveref,tikz,array,multirow,enumitem,stackengine,graphicx,ulem}
+\usepackage[paperwidth=5.0in,paperheight=7.8in, margin=0.1in]{geometry}
+\usepackage{xcolor}
+\usepackage{tikzit}
+\input{test.tikzstyles}
+
+\begin{document}
+
+% \include{definitions}
+
+\section{Overview}
+
+\begin{definition}
+   A monoid object in a monoidal category $(\mathcal{C}, I, \mathrm{a}, \mathrm{l}, \mathrm{r})$ is an object $A$ together with morphisms $\mu: A \otimes A \to A$ and $\eta: I \to A$ such that $\mu$ is associative and $\eta$ a unit.
+   
+   A commutative monoid object in a symmetric monoidal category $(\mathcal{C}, I, \mathrm{a}, \mathrm{l}, \mathrm{r}, \mathrm{s})$ is a monoid object such that $\mu$ is commutative.
+   
+   A finite co-product in a symmetric monoidal category is an object $A \otimes B$ together with together with morphisms $\nabla: A \otimes A \to A$ and $\eta: I \to A$ such that $\mu$ is associative and $\eta$ a unit.
+\end{definition}
+   
+   \ctikzfig{monoid-tree}
+
+\end{document}

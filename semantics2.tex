@@ -1,0 +1,111 @@
+\documentclass{amsart}
+
+\usepackage{amssymb,ifthen,stmaryrd}
+
+\newcommand{\va}[1]{#1_{\mathrm{N}}}
+\newcommand{\lv}[1]{#1_{\mathrm{L}}}
+\newcommand{\ch}[2]{#1 \; #2}
+\newcommand{\qu}[1]{\ulcorner #1 \urcorner}
+\newcommand{\uq}[1]{\llcorner #1 \lrcorner}
+\newcommand{\ap}[2]{#1.#2}
+\newcommand{\aps}[2]{#1 {\star} #2}
+\newcommand{\typerule}[5]{#1 \mid #2 \vdash #3 : #4\;#5}
+\newcommand{\fun}{{\to}}
+\newcommand{\js}{{\rightleftarrows}}
+\newcommand{\ttup}[2][]{\setlength\tabcolsep{0pt}\left\langle \ifthenelse{\equal{#1}{}}{}{#1\colon} #2 \right\rangle}
+\newcommand{\tup}[2][]{\setlength\tabcolsep{0pt}\left\langle \ifthenelse{\equal{#1}{}}{}{#1\colon} #2 \right\rangle}
+\newcommand{\tarr}[3]{#1 \mathrel{#2} #3}
+\newcommand{\sem}[1]{\left\llbracket #1 \right\rrbracket}
+\newcommand{\dflt}{\star}
+\newcommand{\tmp}{\bullet}
+\newcommand{\rev}[1]{#1^\dagger}
+
+\newcommand{\id}{\mathrm{id}}
+\newcommand{\conv}{\dagger}
+\newcommand{\orelse}{\obar}
+
+\begin{document}
+
+\begin{gather}
+    \typerule{\ttup{\Gamma, v\colon A}}{\ttup{}}{\va{v}}{\fun}{\ttup{\dflt\colon A}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\Delta, v\colon A}}{\va{v}}{\fun}{\ttup{\Delta, v\colon A, \dflt\colon A}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{v\colon A}}{\lv{v}}{\js}{\ttup{\dflt\colon A}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\dflt\colon A}}{\rev{\lv{v}}}{\js}{\ttup{v\colon A}} \\
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{e_1}{j}{\ttup{E_1}} \\
+        \typerule{\ttup{\Gamma}}{\ttup{E_1}}{e_2}{j}{\ttup{E_2}} \\
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{\ch{e_1}{e_2}}{j}{\ttup{E_2}}} \text{(composition)} \\
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma, \Delta_2}}{\ttup{\Delta_1}}{e_1}{j}{\ttup{E_1, E_1'}} \\
+        \typerule{\ttup{\Gamma, E_1}}{\ttup{\Delta_2, E_1'}}{e_2}{j}{\ttup{E_2}} \\
+        \mathrm{dom}\,\Delta_2 \cap \mathrm{dom}\,E_1 = \emptyset
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta_2, \Delta_1}}{\ch{e_1}{e_2}}{j}{\ttup{E_1, E_2}}} \text{(composition)} \\
+    \dfrac{\typerule{\ttup{\Gamma, \Gamma'}}{\ttup{\Delta}}{e}{j}{\ttup{E}}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Gamma', \Delta}}{e}{j}{\ttup{\Gamma', E}}} \text{(juncurry)} \\
+    \dfrac{\typerule{\ttup{\Gamma}}{\ttup{\Delta}}{e}{j}{\ttup{E}}}
+          {\typerule{\ttup{\Gamma}}{\tup{}}{\qu{e}_{\Delta, E}}{\fun}{\ttup{\dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}}}} \text{(lambda)} \\
+    \dfrac{\typerule{\ttup{\Gamma}}{\ttup{\dflt\colon \ttup{\Delta}}}{e}{j}{\ttup{\dflt\colon \ttup{E}}}}
+          {\typerule{\ttup{\Gamma}}{\tup{}}{\qu{e}}{\fun}{\ttup{\dflt\colon \tarr{\ttup{\dflt\colon \ttup{\Delta}}}{j}{\ttup{\dflt\colon\ttup{E}}}}}} \text{(lambda-$\dflt$)} \\
+    \dfrac{\typerule{\ttup{\Gamma}}{\tup{}}{e}{\fun}{\ttup{\dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}}}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta}}{\uq{e}_{\Delta, E}}{j}{\ttup{E}}} \text{(unlambda)}\\
+    \dfrac{\typerule{\ttup{\Gamma}}{\tup{}}{e}{\fun}{\ttup{\dflt\colon \tarr{\ttup{\dflt\colon \ttup{\Delta}}}{j}{\ttup{\dflt\colon \ttup{E}}}}}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\dflt\colon \ttup{\Delta}}}{\uq{e}}{j}{\ttup{\dflt\colon \ttup{E}}}} \text{(unlambda-$\dflt$)}\\
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma, \Delta}}{\Delta'}{e}{j}{\ttup{E}}
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta, \Delta'}}{e}{\fun}{\ttup{\dflt\colon \ttup{E'}}}} \text{(weaken conversibility)}\\
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{e_1}{j}{\ttup{\dflt\colon \ttup{E_1}}} \\
+        \typerule{\ttup{\Gamma}}{\tup{}}{e_2}{\fun}{\ttup{\dflt\colon \tarr{\ttup{E_1}}{j}{\ttup{E_2}}}}
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{\ap{e_1}{e_2}}{j}{\ttup{\dflt\colon \ttup{E_2}}}}
+\end{gather}
+\begin{gather}
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma, \Delta_2}}{\ttup{\Delta_1}}{e_1}{j}{\ttup{E_1, E_1'}} \\
+        \typerule{\ttup{\Gamma, E_1}}{\tup{}}{e_2}{\fun}{\ttup{\dflt\colon \tarr{\ttup{\Delta_2, E_1'}}{j}{\ttup{E_2}}}}
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta_2, \Delta_1}}{\aps{e_1}{e_2}}{j}{\ttup{E_1, E_2}}} \\
+    \dfrac{\begin{array}{c}
+        \typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{e_1}{j}{A} \\
+        \typerule{\ttup{\Gamma}}{\tup{}}{e_2}{\fun}{\ttup{\dflt\colon \tarr{A}{j}{B}}}
+        \end{array}}
+          {\typerule{\ttup{\Gamma}}{\ttup{\Delta_1}}{\ap{e_1}{e_2}}{j}{B}}
+\end{gather}
+
+\begin{gather}
+    \typerule{\ttup{\Gamma}}{\ttup{\Delta}}{\id}{\js}{\ttup{\Delta}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}}}{\conv}{\js}{\ttup{\dflt\colon \tarr{\ttup{E}}{j}{\ttup{\Delta}}}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\begin{array}{@{}l@{}}
+        \dflt\colon \tarr{\ttup{\Delta_1}}{j_1}{\ttup{E_1}},\\
+        \dflt\colon \tarr{\ttup{\Delta_2}}{j_2}{\ttup{E_2}}
+        \end{array}}}{\mathrm{par}}{\ttup{\begin{array}{@{}l@{}}
+        \dflt\colon \tarr{\ttup{\Delta_1 \cup \Delta_2}}{(j_1 \vee j_2 \vee j')}{\ttup{E_1 \cap E_2}}, \\
+        \dflt\colon \tarr{\ttup{\Delta_2 \cup \Delta_2}}{(j_1 \vee j_2 \vee j')}{\ttup{E_1 \cap E_2}}
+        \end{array}}} \\
+        \qquad\text{where } j' = \js \text{ if } \ttup{\Delta_1} = \ttup{\Delta_2} \wedge \ttup{E_1} = \ttup{E_2} \text{ else } \fun\\
+    \typerule{\ttup{\Gamma}}{\tup{\dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}, \dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}}}{\orelse}{\fun}{\tup{\dflt\colon \tarr{\ttup{\Delta}}{j}{\ttup{E}}}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\Delta}}{\mathrm{tup}}{\js}{\tup{\dflt\colon \ttup{\Delta}}} \\
+    \typerule{\ttup{\Gamma}}{\ttup{\Delta, \dflt\colon \ttup{E}}}{\mathrm{drop}}{j}{\ttup{E}} \text{ where } j = \js \text{ if } \ttup{\Delta} = \ttup{} \text{ else } \fun
+\end{gather}
+
+\begin{align}
+    \sem{\va{v}} \gamma &= \gamma + \tup{\dflt\colon \pi_v\,\gamma} \\
+    \sem{\lv{v}} \gamma &= \gamma - \ttup{v} + \tup{\dflt\colon \pi_v\,\gamma} \\
+    \sem{\rev{\lv{v}}} \gamma &= \gamma - \ttup{\dflt} + \tup{v\colon \pi_\dflt\,\gamma} \\
+    \sem{\ch{e_1}{e_2}} \gamma &= \{ \epsilon_1 \leftarrow \sem{e_1}\,\gamma \}.\sem{e_2}\,\epsilon_1\\
+    \sem{\qu{e}} \gamma &= \gamma + \tup{\dflt\colon \lambda \delta. \sem{e}\,(
+    \gamma + \delta)} \\
+    \sem{\uq{e}} \gamma &= \gamma + \pi_\dflt\,(\sem{e} (\gamma - \ttup{\dflt}))\,(\pi_\dflt\,\gamma)
+\end{align}
+
+\begin{align}
+    e_1 \obar e_2 &= \uq{\ch{\qu{e_1}}{\ch{\rev{\lv{\tmp}}}{\ch{\qu{e_2}}{\ch{\lv{\tmp}}{\ch{\mathrm{par}}{\orelse}}}}}} \\
+    f\,(x, y) &= \ch{\lv{x}}{\ch{\lv{y}}{\ch{\mathrm{tup}_{\dflt,\dflt}}{\uq{\va{f}}}}} \\
+    \mathsf{let}\;f\,x = y\;\mathsf{in}\;x &= \ch{\lv{y}}{\ch{\uq{\ch{\va{f}}{\dagger}}}{\ch{\rev{\lv{x}}}{\lv{x}}}} \\
+    \mathsf{let}\;p = v\;\mathsf{in}\;s &= \ch{v}{\ch{\rev{p}}{\ch{s}{\mathrm{drop}}}}
+\end{align}
+
+\end{document}
